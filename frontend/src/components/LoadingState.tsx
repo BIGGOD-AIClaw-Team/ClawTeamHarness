@@ -1,4 +1,3 @@
-import React from 'react';
 import { Spin } from 'antd';
 
 interface LoadingStateProps {
@@ -7,7 +6,7 @@ interface LoadingStateProps {
 
 export function LoadingState({ tip = '加载中...' }: LoadingStateProps) {
   return (
-    <div className="loading-state">
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 50 }}>
       <Spin size="large" tip={tip} />
     </div>
   );

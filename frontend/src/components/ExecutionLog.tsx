@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { Button } from 'antd';
+import { ClearIcon } from './Icons';
 
 interface LogEntry {
   timestamp: string;
@@ -40,28 +42,21 @@ export function ExecutionLog({ sessionId }: ExecutionLogProps) {
 
   return (
     <div className="execution-log">
-      <div className="log-header">
-        <h4>执行日志</h4>
-        <button onClick={() => setLogs([])}>清除</button>
+      <div className="log-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <h4 style={{ margin: 0 }}>执行日志</h4>
+        <Button size="small" icon={<ClearIcon />} onClick={() => setLogs([])}>清除</Button>
       </div>
       
-      <div className="log-entries">
-        {logs.map((log, index) => (
-          <div 
-            key={index} 
-            className={`log-entry ${log.level.toLowerCase()}`}
-          >
-            <span className="log-time">{new Date(log.timestamp).toLocaleTimeString()}</span>
-            <span 
-              className="log-level" 
-              style={{ color: levelColors[log.level] || '#888' }}
-            >
-              {log.level}
-            </span>
-            <span className="log-event">[{log.event}]</span>
-            <span className="log-message">{log.message}</span>
+      <div className="log-entries" style={{ maxHeight: 300, overflow: 'auto', fontFamily: 'monospace', fontSize: 12 }}>
+        {logs.map((log, idx) => (
+          <div key={idx} style={{ padding: '2px 0', borderBottom: '1px solid #f0f0f0' }}>
+            <span style={{ color: '#888' }}>{new Date(log.timestamp).toLocaleTimeString()}</span>
+            <span style={{ color: levelColors[log.level] || '#888', marginLeft: 8, fontWeight: 'bold' }}>{log.level}</span>
+            <span style={{ color: '#666', marginLeft: 8 }}>[{log.event}]</span>
+            <span style={{ marginLeft: 8 }}>{log.message}</span>
           </div>
         ))}
+        {logs.length === 0 && <div style={{ color: '#888', textAlign: 'center', padding: 20 }}>暂无日志</div>}
       </div>
     </div>
   );

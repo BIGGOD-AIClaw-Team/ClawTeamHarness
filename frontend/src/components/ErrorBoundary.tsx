@@ -1,8 +1,8 @@
-import React, { Component, ReactNode } from 'react';
+import { Component, ReactNode } from 'react';
+import { Result, Button } from 'antd';
 
 interface Props {
   children: ReactNode;
-  fallback?: ReactNode;
 }
 
 interface State {
@@ -20,20 +20,23 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: any) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback || (
-        <div className="error-boundary">
-          <h2>出错了</h2>
-          <p>{this.state.error?.message}</p>
-          <button onClick={() => this.setState({ hasError: false })}>
-            重试
-          </button>
-        </div>
+      return (
+        <Result
+          status="error"
+          title="出错了"
+          subTitle={this.state.error?.message}
+          extra={
+            <Button type="primary" onClick={() => this.setState({ hasError: false })}>
+              重试
+            </Button>
+          }
+        />
       );
     }
 

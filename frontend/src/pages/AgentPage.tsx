@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, addEdge, Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Card, Button, List, Tag, Modal, Form, Input, message, Space } from 'antd';
-import { PlusOutlined, PlayCircleOutlined, EditOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
+import { PlusIcon, EditIcon, PlayIcon, DeleteIcon, SaveIcon } from '../components/Icons';
 
 const nodeTypes_list = ['input', 'default', 'output'] as const;
 type NodeType = typeof nodeTypes_list[number];
@@ -38,7 +38,6 @@ export function AgentPage() {
   const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
   const [form] = Form.useForm();
 
-  // Canvas state
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [agentName, setAgentName] = useState('My Agent');
@@ -106,11 +105,7 @@ export function AgentPage() {
 
   const saveGraph = () => {
     if (!currentAgent) return;
-    const graphData = {
-      name: agentName,
-      nodes,
-      edges,
-    };
+    const graphData = { name: agentName, nodes, edges };
     fetch(`/api/agents/${currentAgent.agent_id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -127,12 +122,7 @@ export function AgentPage() {
   const addNode = (type: NodeType) => {
     const id = String(Date.now());
     const labels: Record<NodeType, string> = { input: 'Start', default: 'Node', output: 'End' };
-    const newNode: Node = {
-      id,
-      position: { x: 250, y: 150 },
-      data: { label: labels[type] },
-      type,
-    };
+    const newNode: Node = { id, position: { x: 250, y: 150 }, data: { label: labels[type] }, type };
     setNodes((nds) => [...nds, newNode]);
   };
 
@@ -141,7 +131,7 @@ export function AgentPage() {
       <Card
         title="Agent 列表"
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
+          <Button type="primary" icon={<PlusIcon />} onClick={() => setIsModalOpen(true)}>
             创建 Agent
           </Button>
         }
@@ -152,9 +142,9 @@ export function AgentPage() {
           renderItem={(agent: Agent) => (
             <List.Item
               actions={[
-                <Tag key="edit" icon={<EditOutlined />} style={{ cursor: 'pointer' }} onClick={() => handleEditCanvas(agent)}>编辑</Tag>,
-                <Tag color="green" key="run" icon={<PlayCircleOutlined />} style={{ cursor: 'pointer' }}>运行</Tag>,
-                <Tag color="red" key="delete" icon={<DeleteOutlined />} style={{ cursor: 'pointer' }} onClick={() => handleDeleteAgent(agent.agent_id)}>删除</Tag>,
+                <Tag key="edit" icon={<EditIcon />} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleEditCanvas(agent)}>编辑</Tag>,
+                <Tag color="green" key="run" icon={<PlayIcon />} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>运行</Tag>,
+                <Tag color="red" key="delete" icon={<DeleteIcon />} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleDeleteAgent(agent.agent_id)}>删除</Tag>,
               ]}
             >
               <List.Item.Meta
@@ -191,7 +181,7 @@ export function AgentPage() {
         footer={
           <Space>
             <Button onClick={() => setIsCanvasOpen(false)}>取消</Button>
-            <Button type="primary" icon={<SaveOutlined />} onClick={saveGraph}>保存</Button>
+            <Button type="primary" icon={<SaveIcon />} onClick={saveGraph}>保存</Button>
           </Space>
         }
       >
