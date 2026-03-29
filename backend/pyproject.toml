@@ -5,7 +5,8 @@ description = "AI Agent Harness - 一站式 AI Agent 开发与运行平台"
 requires-python = ">=3.10"
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio", "pytest-cov", "black", "ruff"]
+api = ["fastapi", "uvicorn", "pydantic"]
+dev = ["pytest", "pytest-asyncio", "pytest-cov", "black", "ruff", "fastapi", "uvicorn", "httpx"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
