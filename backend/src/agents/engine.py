@@ -53,28 +53,118 @@ class AgentEngine:
     the graph from a start node to an end node.
     """
 
-    def __init__(self, graph_def: dict):
+    def __init__(
+        self,
+        graph_def: Optional[dict] = None,
+        name: Optional[str] = None,
+        llm_config: Optional[dict] = None,
+        agent_mode_config: Optional[dict] = None,
+    ):
         """
         Initialize the Agent engine.
-        
+
         Args:
             graph_def: Graph definition dict with keys:
                 - nodes: list of node dicts with id, type, config
                 - edges: list of edge dicts with source, target, condition
                 - start: str, name of the start node id
                 - end: str, name of the end node id
+            name: Agent name (for config-based creation).
+            llm_config: LLM configuration dict.
+            agent_mode_config: Agent mode configuration dict.
         """
-        self.graph_def = graph_def
+        self.name = name or "agent"
+        self.llm_config = llm_config or {}
+        self.agent_mode_config = agent_mode_config or {}
+        self.graph_def = graph_def or {}
         self._nodes: dict[str, dict] = {}
         self._edges: list[dict] = []
         self._node_instances: dict[str, Any] = {}
         self.graph: StateGraph | None = self._build_graph()
 
+    def _build_default_graph(self) -> dict:
+        """Build a default graph based on agent mode configuration."""
+        agent_mode = self.agent_mode_config.get("type", "react")
+        llm_model = self.llm_config.get("model", "gpt-4")
+        llm_temp = self.llm_config.get("temperature", 0.7)
+
+        if agent_mode == "react":
+            # ReAct: start -> llm -> tool (conditional) -> end
+            nodes = [
+                {"id": "start", "type": "start", "config": {}},
+                {
+                    "id": "llm",
+                    "type": "llm",
+                    "config": {
+                        "model": llm_model,
+                        "prompt": "你是一个智能助手。",
+                        "temperature": llm_temp,
+                    },
+                },
+                {"id": "end", "type": "end", "config": {}},
+            ]
+            edges = [
+                {"source": "start", "target": "llm", "condition": None},
+                {"source": "llm", "target": "end", "condition": None},
+            ]
+        elif agent_mode == "plan_and_execute":
+            # Plan-and-Execute: start -> planner -> executor -> end
+            nodes = [
+                {"id": "start", "type": "start", "config": {}},
+                {
+                    "id": "planner",
+                    "type": "llm",
+                    "config": {"model": llm_model, "temperature": llm_temp},
+                },
+                {
+                    "id": "executor",
+                    "type": "llm",
+                    "config": {"model": llm_model, "temperature": llm_temp},
+                },
+                {"id": "end", "type": "end", "config": {}},
+            ]
+            edges = [
+                {"source": "start", "target": "planner"},
+                {"source": "planner", "target": "executor"},
+                {"source": "executor", "target": "end"},
+            ]
+        else:
+            # Simple chat: start -> llm -> end
+            nodes = [
+                {"id": "start", "type": "start", "config": {}},
+                {
+                    "id": "llm",
+                    "type": "llm",
+                    "config": {
+                        "model": llm_model,
+                        "temperature": llm_temp,
+                    },
+                },
+                {"id": "end", "type": "end", "config": {}},
+            ]
+            edges = [
+                {"source": "start", "target": "llm"},
+                {"source": "llm", "target": "end"},
+            ]
+
+        return {
+            "nodes": nodes,
+            "edges": edges,
+            "start": "start",
+            "end": "end",
+        }
+
     def _build_graph(self) -> StateGraph | None:
-        """Build the LangGraph StateGraph from graph_def."""
-        nodes_def = self.graph_def.get("nodes", [])
-        edges_def = self.graph_def.get("edges", [])
-        
+        """Build the LangGraph StateGraph from graph_def or default config."""
+        graph_def = self.graph_def
+
+        # If no graph_def provided but we have config, build a default graph
+        if not graph_def and (self.llm_config or self.agent_mode_config):
+            graph_def = self._build_default_graph()
+
+        nodes_def = graph_def.get("nodes", [])
+        edges_def = graph_def.get("edges", [])
+
         # Return None if no nodes - graph can't be built
         if not nodes_def:
             return None

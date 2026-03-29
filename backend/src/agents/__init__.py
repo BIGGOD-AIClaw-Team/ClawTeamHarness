@@ -22,6 +22,23 @@ from .checkpoint import CheckpointManager, checkpoint_manager
 from .serializer import GraphSerializer
 from .intent import IntentClassifier
 from .response import ResponseGenerator
+from .config_models import (
+    AgentConfig,
+    AgentMode,
+    AgentModeConfig,
+    LLMConfig,
+    LLMProvider,
+    MemoryConfig,
+    MemoryType,
+    PromptConfig,
+    ShortTermMemoryConfig,
+    LongTermMemoryConfig,
+    DecisionConfig,
+    ToolConfig,
+    MultiAgentConfig,
+    SubAgent,
+)
+from .agent_factory import AgentFactory
 
 __all__ = [
     "AgentEngine",
@@ -48,4 +65,21 @@ __all__ = [
     # Checkpoint
     "CheckpointManager",
     "checkpoint_manager",
+    # Config models
+    "AgentConfig",
+    "AgentMode",
+    "AgentModeConfig",
+    "LLMConfig",
+    "LLMProvider",
+    "MemoryConfig",
+    "MemoryType",
+    "PromptConfig",
+    "ShortTermMemoryConfig",
+    "LongTermMemoryConfig",
+    "DecisionConfig",
+    "ToolConfig",
+    "MultiAgentConfig",
+    "SubAgent",
+    # Factory
+    "AgentFactory",
 ]
