@@ -1,6 +1,6 @@
 {
-  "agent_id": "\u8bba\u6587\u5199\u4f5c\u52a9\u624b",
-  "name": "\u8bba\u6587\u5199\u4f5c\u52a9\u624b",
+  "agent_id": "论文写作助手",
+  "name": "论文写作助手",
   "description": "",
   "graph_def": {
     "nodes": [
@@ -12,7 +12,7 @@
           "y": 0
         },
         "data": {
-          "label": "\u5f00\u59cb"
+          "label": "开始"
         }
       },
       {
@@ -23,7 +23,7 @@
           "y": 100
         },
         "data": {
-          "label": "LLM \u5bf9\u8bdd"
+          "label": "LLM 对话"
         }
       },
       {
@@ -34,7 +34,7 @@
           "y": 200
         },
         "data": {
-          "label": "\u7ed3\u675f"
+          "label": "结束"
         }
       }
     ],
@@ -62,7 +62,7 @@
     "max_iterations": 10
   },
   "prompt_config": {
-    "system": "\u8bba\u6587\u5199\u4f5c\u52a9\u624b"
+    "system": "论文写作助手"
   },
   "memory_config": {
     "enabled": true,
@@ -74,7 +74,8 @@
   "tools_config": {
     "enabled": true
   },
-  "status": "published",
+  "status": "draft",
   "created_at": "2026-03-30T00:00:15.270495",
-  "published_at": "2026-03-30T00:00:16.245023"
+  "published_at": "2026-03-30T00:00:16.245023",
+  "updated_at": "2026-03-30T00:12:01.704833"
 }
