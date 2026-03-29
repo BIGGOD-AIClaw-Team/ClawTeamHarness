@@ -1,0 +1,80 @@
+{
+  "agent_id": "\u8bba\u6587\u5199\u4f5c\u52a9\u624b",
+  "name": "\u8bba\u6587\u5199\u4f5c\u52a9\u624b",
+  "description": "",
+  "graph_def": {
+    "nodes": [
+      {
+        "id": "start-1",
+        "type": "input",
+        "position": {
+          "x": 250,
+          "y": 0
+        },
+        "data": {
+          "label": "\u5f00\u59cb"
+        }
+      },
+      {
+        "id": "llm-1",
+        "type": "default",
+        "position": {
+          "x": 250,
+          "y": 100
+        },
+        "data": {
+          "label": "LLM \u5bf9\u8bdd"
+        }
+      },
+      {
+        "id": "end-1",
+        "type": "output",
+        "position": {
+          "x": 250,
+          "y": 200
+        },
+        "data": {
+          "label": "\u7ed3\u675f"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "start-1",
+        "target": "llm-1"
+      },
+      {
+        "id": "e2",
+        "source": "llm-1",
+        "target": "end-1"
+      }
+    ]
+  },
+  "llm_config": {
+    "provider": "minimax",
+    "model": "MiniMax-M2.7",
+    "api_key": "sk-cp-rMTIzB_jgdQ4mX6J1M_ym5ak-rzEdoFP-jofnGUKiPCuv3e3ddW-D0NBPSPfqU6ZdNJCD7q58tYrboeYpXcAalytn1jK0TMCQLAtJaAJ_qbIgWF5eO4x95s",
+    "temperature": 0.7
+  },
+  "mode_config": {
+    "type": "react",
+    "max_iterations": 10
+  },
+  "prompt_config": {
+    "system": "\u8bba\u6587\u5199\u4f5c\u52a9\u624b"
+  },
+  "memory_config": {
+    "enabled": true,
+    "type": "hybrid"
+  },
+  "decision_config": {
+    "auto_critique": true
+  },
+  "tools_config": {
+    "enabled": true
+  },
+  "status": "published",
+  "created_at": "2026-03-30T00:00:15.270495",
+  "published_at": "2026-03-30T00:00:16.245023"
+}

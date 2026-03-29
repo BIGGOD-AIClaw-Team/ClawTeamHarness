@@ -1,5 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, Input, Button, List, Avatar, Alert, Spin } from 'antd';
+import { marked } from 'marked';
+import hljs from 'highlight.js';
+
+// 配置 marked
+marked.use({
+  breaks: true,
+  gfm: true,
+});
+
+// 自定义代码块渲染
+const renderer = new marked.Renderer();
+renderer.code = ({ text, lang }: { text: string; lang?: string }) => {
+  const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext';
+  const highlighted = hljs.highlight(text, { language }).value;
+  return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`;
+};
+marked.use({ renderer });
 
 interface Message {
   id: string;
@@ -24,6 +41,7 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [streaming, setStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 加载已发布的 Agent 列表
@@ -35,7 +53,7 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
       .then(data => setPublishedAgents(data.agents || []));
   }, []);
 
-  // 发送消息
+  // 发送消息（流式）
   const sendMessage = async () => {
     if (!input.trim() || !currentSession) return;
     
@@ -51,52 +69,101 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
       messages: [...prev.messages, userMessage],
     } : null);
     
+    const userInput = input;
     setInput('');
     setLoading(true);
     setError(null);
+    setStreaming(true);
     
     try {
-      // 调用 Agent 执行
-      const resp = await fetch(`/api/agents/${currentSession.agent_id}/execute`, {
+      // 调用流式 API
+      const resp = await fetch(`/api/agents/${currentSession.agent_id}/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: input, session_id: currentSession.session_id }),
+        body: JSON.stringify({ message: userInput, session_id: currentSession.session_id }),
       });
       
-      const result = await resp.json();
-      
-      if (!resp.ok || result.error) {
-        setError(result.error || result.detail || '执行失败');
+      if (!resp.ok) {
+        const errData = await resp.json();
+        setError(errData.error || '请求失败');
         setLoading(false);
+        setStreaming(false);
         return;
       }
       
-      // 从 result.result 中提取响应内容
-      let responseText = 'Agent 已收到消息';
-      if (result.result) {
-        // 尝试多种可能的结果格式
-        responseText = result.result.response 
-          || result.result.message 
-          || result.result.text
-          || result.result.content
-          || JSON.stringify(result.result);
+      const reader = resp.body?.getReader();
+      if (!reader) {
+        setError('无法读取响应流');
+        setLoading(false);
+        setStreaming(false);
+        return;
       }
       
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: responseText,
-        timestamp: new Date().toISOString(),
-      };
+      const decoder = new TextDecoder();
+      let assistantContent = '';
       
+      // 添加空的 assistant 消息
+      const assistantMessageId = (Date.now() + 1).toString();
       setCurrentSession(prev => prev ? {
         ...prev,
-        messages: [...prev.messages, assistantMessage],
+        messages: [...prev.messages, {
+          id: assistantMessageId,
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toISOString(),
+        }],
       } : null);
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const text = decoder.decode(value);
+        const lines = text.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.chunk) {
+                assistantContent += data.chunk;
+                // 实时更新消息
+                setCurrentSession(prev => {
+                  if (!prev) return prev;
+                  const msgs = [...prev.messages];
+                  const lastIdx = msgs.length - 1;
+                  if (msgs[lastIdx]?.role === 'assistant') {
+                    msgs[lastIdx] = {
+                      ...msgs[lastIdx],
+                      content: assistantContent,
+                    };
+                  }
+                  return { ...prev, messages: msgs };
+                });
+              }
+              
+              if (data.done || data.error) {
+                setStreaming(false);
+                if (data.error) {
+                  setError(data.error);
+                }
+              }
+            } catch (e) {
+              // 忽略解析错误
+            }
+          }
+        }
+      }
+      
+      setStreaming(false);
+      
     } catch (e: any) {
       setError('请求失败: ' + (e.message || '网络错误'));
+      setStreaming(false);
     } finally {
       setLoading(false);
+      setStreaming(false);
     }
   };
 
@@ -115,6 +182,16 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentSession?.messages]);
+
+  // 渲染 Markdown 内容
+  const renderContent = (content: string) => {
+    if (!content) return '';
+    try {
+      return marked.parse(content) as string;
+    } catch {
+      return content;
+    }
+  };
 
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 120px)' }}>
@@ -167,8 +244,16 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
                         background: msg.role === 'user' ? '#1890ff' : '#f5f5f5',
                         color: msg.role === 'user' ? 'white' : 'black',
                       }}
+                      bodyStyle={{ padding: 12 }}
                     >
-                      <div>{msg.content}</div>
+                      {msg.role === 'user' ? (
+                        <div>{msg.content}</div>
+                      ) : (
+                        <div 
+                          dangerouslySetInnerHTML={{ __html: renderContent(msg.content) }}
+                          style={{ lineHeight: 1.6 }}
+                        />
+                      )}
                       <div style={{ fontSize: 10, opacity: 0.7, marginTop: 4 }}>
                         {new Date(msg.timestamp).toLocaleTimeString()}
                       </div>
@@ -176,6 +261,15 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
                   </List.Item>
                 )}
               />
+              
+              {/* 思考中状态 */}
+              {streaming && (
+                <div style={{ display: 'flex', alignItems: 'center', padding: '8px 16px' }}>
+                  <Spin size="small" style={{ marginRight: 8 }} />
+                  <span style={{ color: '#888' }}>思考中...</span>
+                </div>
+              )}
+              
               <div ref={messagesEndRef} />
             </div>
             
@@ -198,7 +292,7 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
                 onChange={e => setInput(e.target.value)}
                 placeholder="输入消息..."
                 autoSize={{ minRows: 1, maxRows: 4 }}
-                disabled={loading}
+                disabled={loading || streaming}
                 onPressEnter={(e) => {
                   if (!e.shiftKey) {
                     e.preventDefault();
@@ -206,8 +300,13 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
                   }
                 }}
               />
-              <Button type="primary" onClick={sendMessage} loading={loading} disabled={loading}>
-                发送
+              <Button 
+                type="primary" 
+                onClick={sendMessage} 
+                loading={loading || streaming}
+                disabled={loading || streaming || !input.trim()}
+              >
+                {streaming ? '生成中' : '发送'}
               </Button>
             </div>
           </>

@@ -170,3 +170,158 @@ class Agent:
     def clear_history(self):
         """清空对话历史"""
         self.messages = []
+
+    async def stream_chat(self, user_message: str):
+        """
+        流式对话，返回生成器
+        Yields chunks of the response as they come.
+        """
+        messages = self._build_messages(user_message)
+        
+        provider = self.llm_config.get("provider", "openai")
+        model = self.llm_config.get("model", "gpt-4")
+        api_key = self.llm_config.get("api_key") or os.getenv("LLM_API_KEY", "")
+        temperature = float(self.llm_config.get("temperature", 0.7))
+        
+        if not api_key:
+            yield "错误：未配置 API Key，请在 Agent 设置中配置 LLM API Key。"
+            return
+        
+        try:
+            if provider == "openai":
+                from openai import AsyncOpenAI
+                client = AsyncOpenAI(api_key=api_key)
+                
+                stream = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    stream=True,
+                )
+                
+                full_response = ""
+                async for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        full_response += content
+                        yield content
+                
+                # Save to memory after streaming completes
+                self._save_memory(user_message, full_response)
+            
+            elif provider == "anthropic":
+                import anthropic
+                client = anthropic.AsyncAnthropic(api_key=api_key)
+                
+                # Convert messages format for Anthropic
+                anthropic_messages = []
+                for msg in messages:
+                    if msg["role"] == "system":
+                        anthropic_messages.append({"role": "user", "content": f"System: {msg['content']}"})
+                    else:
+                        anthropic_messages.append({"role": msg["role"], "content": msg["content"]})
+                
+                async with client.messages.stream(
+                    model=model or "claude-3",
+                    max_tokens=2048,
+                    messages=anthropic_messages
+                ) as stream:
+                    full_response = ""
+                    async for text in stream.text_stream:
+                        full_response += text
+                        yield text
+                    
+                    # Get final message
+                    final = await stream.get_final_message()
+                    # Save to memory after streaming completes
+                    self._save_memory(user_message, full_response)
+            
+            elif provider == "glm":
+                # 智谱 AI
+                from openai import AsyncOpenAI
+                client = AsyncOpenAI(
+                    api_key=api_key,
+                    base_url="https://open.bigmodel.cn/api/paas/v4"
+                )
+                stream = await client.chat.completions.create(
+                    model=model or "glm-4",
+                    messages=messages,
+                    stream=True,
+                )
+                
+                full_response = ""
+                async for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        full_response += content
+                        yield content
+                
+                self._save_memory(user_message, full_response)
+            
+            elif provider == "minimax":
+                # Minimax
+                from openai import AsyncOpenAI
+                client = AsyncOpenAI(
+                    api_key=api_key,
+                    base_url="https://api.minimax.chat/v1"
+                )
+                stream = await client.chat.completions.create(
+                    model=model or "abab6-chat",
+                    messages=messages,
+                    stream=True,
+                )
+                
+                full_response = ""
+                async for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        full_response += content
+                        yield content
+                
+                self._save_memory(user_message, full_response)
+            
+            elif provider == "qwen":
+                # 通义千问
+                from openai import AsyncOpenAI
+                client = AsyncOpenAI(
+                    api_key=api_key,
+                    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
+                )
+                stream = await client.chat.completions.create(
+                    model=model or "qwen-turbo",
+                    messages=messages,
+                    stream=True,
+                )
+                
+                full_response = ""
+                async for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        full_response += content
+                        yield content
+                
+                self._save_memory(user_message, full_response)
+            
+            else:
+                # 默认 OpenAI
+                from openai import AsyncOpenAI
+                client = AsyncOpenAI(api_key=api_key)
+                stream = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    stream=True,
+                )
+                
+                full_response = ""
+                async for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        full_response += content
+                        yield content
+                
+                self._save_memory(user_message, full_response)
+                
+        except Exception as e:
+            logger.exception(f"LLM stream failed: {e}")
+            yield f"错误：{str(e)}"

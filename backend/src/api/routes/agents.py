@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import json
@@ -201,6 +202,24 @@ async def publish_agent(agent_id: str):
     
     return {"status": "published", "agent_id": agent_id}
 
+@router.post("/{agent_id}/unpublish")
+async def unpublish_agent(agent_id: str):
+    """取消发布 Agent"""
+    path = AGENTS_DIR / f"{agent_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    with open(path) as f:
+        data = json.load(f)
+    
+    data["status"] = "draft"
+    data["unpublished_at"] = datetime.now().isoformat()
+    
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+    
+    return {"status": "unpublished", "agent_id": agent_id}
+
 class AgentExecuteRequest(BaseModel):
     message: str = ""
     session_id: Optional[str] = None
@@ -255,3 +274,55 @@ async def execute_agent(agent_id: str, request: AgentExecuteRequest):
     except Exception as e:
         logger.exception(f"Agent execution failed: {e}")
         return {"status": "error", "error": str(e)}
+
+@router.post("/{agent_id}/stream")
+async def stream_agent(agent_id: str, request: AgentExecuteRequest):
+    """流式对话 - 返回 Server-Sent Events"""
+    from ...agents.simple_agent import Agent as SimpleAgent
+
+    # 加载 Agent
+    path = AGENTS_DIR / f"{agent_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    with open(path) as f:
+        data = json.load(f)
+
+    # 取出配置
+    llm_config = data.get("llm_config", {})
+    prompt_config = data.get("prompt_config", {})
+    memory_config = data.get("memory_config", {})
+
+    logger.info(f"=== stream_agent {agent_id} ===")
+
+    # 用户消息
+    user_message = request.message or request.input_data.get("message", "")
+    if not user_message:
+        error_data = json.dumps({"error": "消息不能为空"}, ensure_ascii=False)
+        async def error_gen():
+            yield f"data: {error_data}\n\n"
+        return StreamingResponse(error_gen(), media_type="text/event-stream")
+
+    async def generate():
+        try:
+            # 创建简单的 Agent
+            agent = SimpleAgent(
+                name=agent_id,
+                llm_config=llm_config,
+                prompt_config=prompt_config,
+                memory_config=memory_config,
+            )
+            
+            # 流式调用 LLM
+            async for chunk in agent.stream_chat(user_message):
+                data_chunk = json.dumps({"chunk": chunk}, ensure_ascii=False)
+                yield f"data: {data_chunk}\n\n"
+            
+            yield f"data: {json.dumps({'done': True}, ensure_ascii=False)}\n\n"
+            
+        except Exception as e:
+            logger.exception(f"Agent stream failed: {e}")
+            error_data = json.dumps({"error": str(e)}, ensure_ascii=False)
+            yield f"data: {error_data}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")

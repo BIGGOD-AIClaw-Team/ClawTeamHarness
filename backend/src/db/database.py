@@ -1,0 +1,165 @@
+"""
+SQLite Database for ClawTeamHarness
+持久化存储 Agent、对话和消息
+"""
+import sqlite3
+from pathlib import Path
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+
+
+class Database:
+    def __init__(self, db_path: str = "./data/harness.db"):
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+    
+    def _init_db(self):
+        """初始化数据库表"""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS agents (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                config TEXT,
+                status TEXT DEFAULT 'draft',
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS conversations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agent_id TEXT,
+                session_id TEXT,
+                created_at TEXT,
+                FOREIGN KEY(agent_id) REFERENCES agents(id)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                conversation_id INTEGER,
+                role TEXT,
+                content TEXT,
+                created_at TEXT,
+                FOREIGN KEY(conversation_id) REFERENCES conversations(id)
+            )
+        """)
+        conn.commit()
+        conn.close()
+    
+    def save_message(self, agent_id: str, session_id: str, role: str, content: str) -> int:
+        """保存消息，返回消息ID"""
+        conn = sqlite3.connect(self.db_path)
+        
+        # 查找或创建 conversation
+        cursor = conn.execute(
+            "SELECT id FROM conversations WHERE agent_id=? AND session_id=?",
+            (agent_id, session_id)
+        )
+        row = cursor.fetchone()
+        
+        if row:
+            conv_id = row[0]
+        else:
+            cursor = conn.execute(
+                "INSERT INTO conversations (agent_id, session_id, created_at) VALUES (?, ?, ?)",
+                (agent_id, session_id, datetime.now().isoformat())
+            )
+            conv_id = cursor.lastrowid
+        
+        # 插入消息
+        cursor = conn.execute(
+            "INSERT INTO messages (conversation_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+            (conv_id, role, content, datetime.now().isoformat())
+        )
+        
+        msg_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return msg_id
+    
+    def get_conversations(self, agent_id: str) -> List[Dict[str, Any]]:
+        """获取 Agent 的所有会话"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.execute(
+            "SELECT id, session_id, created_at FROM conversations WHERE agent_id=? ORDER BY created_at DESC",
+            (agent_id,)
+        )
+        result = [
+            {"id": r[0], "session_id": r[1], "created_at": r[2]} 
+            for r in cursor.fetchall()
+        ]
+        conn.close()
+        return result
+    
+    def get_messages(self, conversation_id: int) -> List[Dict[str, str]]:
+        """获取会话的所有消息"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.execute(
+            "SELECT role, content FROM messages WHERE conversation_id=? ORDER BY created_at",
+            (conversation_id,)
+        )
+        result = [
+            {"role": r[0], "content": r[1]} 
+            for r in cursor.fetchall()
+        ]
+        conn.close()
+        return result
+    
+    def get_conversation_by_session(self, agent_id: str, session_id: str) -> Optional[Dict[str, Any]]:
+        """通过 session_id 查找会话"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.execute(
+            "SELECT id, session_id, created_at FROM conversations WHERE agent_id=? AND session_id=?",
+            (agent_id, session_id)
+        )
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return {"id": row[0], "session_id": row[1], "created_at": row[2]}
+        return None
+    
+    def delete_conversation(self, conversation_id: int):
+        """删除会话及其所有消息"""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("DELETE FROM messages WHERE conversation_id=?", (conversation_id,))
+        conn.execute("DELETE FROM conversations WHERE id=?", (conversation_id,))
+        conn.commit()
+        conn.close()
+    
+    def save_agent(self, agent_id: str, name: str, config: str, status: str = "draft"):
+        """保存或更新 Agent 元信息"""
+        conn = sqlite3.connect(self.db_path)
+        now = datetime.now().isoformat()
+        
+        # 检查是否存在
+        cursor = conn.execute("SELECT id FROM agents WHERE id=?", (agent_id,))
+        if cursor.fetchone():
+            conn.execute(
+                "UPDATE agents SET name=?, config=?, status=?, updated_at=? WHERE id=?",
+                (name, config, status, now, agent_id)
+            )
+        else:
+            conn.execute(
+                "INSERT INTO agents (id, name, config, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (agent_id, name, config, status, now, now)
+            )
+        
+        conn.commit()
+        conn.close()
+
+
+# 全局数据库实例
+_db: Optional[Database] = None
+
+
+def get_db(db_path: str = "./data/harness.db") -> Database:
+    """获取数据库单例"""
+    global _db
+    if _db is None:
+        _db = Database(db_path)
+    return _db
