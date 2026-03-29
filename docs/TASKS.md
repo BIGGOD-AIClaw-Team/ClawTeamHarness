@@ -1,4 +1,12 @@
-# AI Agent Harness V1.0 MVP 任务列表
+# ⚠️ 注意：本文档已废弃
+
+> **请参阅新版设计文档**：`docs/AGENT_DESIGN_V2.md`（配置式 Agent 编辑）  
+> **开发任务**：`docs/BOB_TASKS_V2.md`（Bob 的开发任务）  
+> **废弃原因**：旧的"画流程图"模式（ReactFlow）已被证明是错误方向，用户需要的是配置式 Agent 编辑
+
+---
+
+# AI Agent Harness V1.0 MVP 任务列表（废弃）
 
 > 版本: v1.0  
 > 创建人: Andy（产品经理）  
