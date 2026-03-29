@@ -8,8 +8,13 @@ from .nodes import (
     StartNode,
     EndNode,
     evaluate_condition,
+    NodeExecutionError,
+    CircuitBreaker,
+    execute_with_retry,
 )
 from .serializer import GraphSerializer
+from .intent import IntentClassifier
+from .response import ResponseGenerator
 
 __all__ = [
     "AgentEngine",
@@ -22,4 +27,9 @@ __all__ = [
     "EndNode",
     "evaluate_condition",
     "GraphSerializer",
+    "NodeExecutionError",
+    "CircuitBreaker",
+    "execute_with_retry",
+    "IntentClassifier",
+    "ResponseGenerator",
 ]

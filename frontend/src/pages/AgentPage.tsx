@@ -1,20 +1,54 @@
-import React from 'react';
-import { Card, Button, List, Tag, Modal, Form, Input, message } from 'antd';
-import { PlusOutlined, PlayCircleOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import React, { useCallback, useState } from 'react';
+import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, addEdge, Node, Edge } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import { Card, Button, List, Tag, Modal, Form, Input, message, Space } from 'antd';
+import { PlusOutlined, PlayCircleOutlined, EditOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
+
+const nodeTypes_list = ['input', 'default', 'output'] as const;
+type NodeType = typeof nodeTypes_list[number];
 
 interface Agent {
   agent_id: string;
   name: string;
   description?: string;
-  graph_def?: any;
+  graph_def?: {
+    nodes?: Node[];
+    edges?: Edge[];
+  };
 }
 
+const initialNodes: Node[] = [
+  { id: '1', position: { x: 250, y: 5 }, data: { label: 'Start' }, type: 'input' },
+  { id: '2', position: { x: 100, y: 100 }, data: { label: 'LLM' }, type: 'default' },
+  { id: '3', position: { x: 400, y: 100 }, data: { label: 'Tool' }, type: 'default' },
+  { id: '4', position: { x: 250, y: 200 }, data: { label: 'End' }, type: 'output' },
+];
+
+const initialEdges: Edge[] = [
+  { id: 'e1-2', source: '1', target: '2' },
+  { id: 'e1-3', source: '1', target: '3' },
+  { id: 'e2-4', source: '2', target: '4' },
+  { id: 'e3-4', source: '3', target: '4' },
+];
+
 export function AgentPage() {
-  const [agents, setAgents] = React.useState<Agent[]>([]);
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCanvasOpen, setIsCanvasOpen] = useState(false);
+  const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
   const [form] = Form.useForm();
 
-  const loadAgents = React.useCallback(() => {
+  // Canvas state
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [agentName, setAgentName] = useState('My Agent');
+
+  const onConnect = useCallback(
+    (params: any) => setEdges((eds) => addEdge(params, eds)),
+    [setEdges],
+  );
+
+  const loadAgents = useCallback(() => {
     fetch('/api/agents/')
       .then(res => res.json())
       .then(data => setAgents(data.agents || []))
@@ -32,7 +66,7 @@ export function AgentPage() {
       body: JSON.stringify(values),
     })
       .then(res => res.json())
-      .then(data => {
+      .then(() => {
         message.success('Agent 创建成功');
         setIsModalOpen(false);
         form.resetFields();
@@ -57,10 +91,55 @@ export function AgentPage() {
     });
   };
 
+  const handleEditCanvas = (agent: Agent) => {
+    setCurrentAgent(agent);
+    setAgentName(agent.name);
+    if (agent.graph_def?.nodes && agent.graph_def?.edges) {
+      setNodes(agent.graph_def.nodes);
+      setEdges(agent.graph_def.edges);
+    } else {
+      setNodes(initialNodes);
+      setEdges(initialEdges);
+    }
+    setIsCanvasOpen(true);
+  };
+
+  const saveGraph = () => {
+    if (!currentAgent) return;
+    const graphData = {
+      name: agentName,
+      nodes,
+      edges,
+    };
+    fetch(`/api/agents/${currentAgent.agent_id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: agentName, graph_def: graphData }),
+    })
+      .then(res => res.json())
+      .then(() => {
+        message.success('Agent 保存成功');
+        loadAgents();
+      })
+      .catch(err => message.error('保存失败: ' + err));
+  };
+
+  const addNode = (type: NodeType) => {
+    const id = String(Date.now());
+    const labels: Record<NodeType, string> = { input: 'Start', default: 'Node', output: 'End' };
+    const newNode: Node = {
+      id,
+      position: { x: 250, y: 150 },
+      data: { label: labels[type] },
+      type,
+    };
+    setNodes((nds) => [...nds, newNode]);
+  };
+
   return (
     <div>
-      <Card 
-        title="Agent 列表" 
+      <Card
+        title="Agent 列表"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
             创建 Agent
@@ -73,7 +152,7 @@ export function AgentPage() {
           renderItem={(agent: Agent) => (
             <List.Item
               actions={[
-                <Tag color="blue" key="edit" icon={<EditOutlined />} style={{ cursor: 'pointer' }}>编辑</Tag>,
+                <Tag key="edit" icon={<EditOutlined />} style={{ cursor: 'pointer' }} onClick={() => handleEditCanvas(agent)}>编辑</Tag>,
                 <Tag color="green" key="run" icon={<PlayCircleOutlined />} style={{ cursor: 'pointer' }}>运行</Tag>,
                 <Tag color="red" key="delete" icon={<DeleteOutlined />} style={{ cursor: 'pointer' }} onClick={() => handleDeleteAgent(agent.agent_id)}>删除</Tag>,
               ]}
@@ -100,11 +179,39 @@ export function AgentPage() {
           <Form.Item name="description" label="描述">
             <Input.TextArea placeholder="Agent 描述（可选）" rows={3} />
           </Form.Item>
-          <Form.Item name="graph_def" label="图定义">
-            <Input.TextArea placeholder='{"nodes": [], "edges": []}' rows={4} />
-          </Form.Item>
           <Button type="primary" htmlType="submit" block>创建</Button>
         </Form>
+      </Modal>
+
+      <Modal
+        title={`编辑 Agent: ${agentName}`}
+        open={isCanvasOpen}
+        onCancel={() => setIsCanvasOpen(false)}
+        width={1200}
+        footer={
+          <Space>
+            <Button onClick={() => setIsCanvasOpen(false)}>取消</Button>
+            <Button type="primary" icon={<SaveOutlined />} onClick={saveGraph}>保存</Button>
+          </Space>
+        }
+      >
+        <Space style={{ marginBottom: 12 }}>
+          <span>添加节点：</span>
+          <Button size="small" onClick={() => addNode('input')}>Start</Button>
+          <Button size="small" onClick={() => addNode('default')}>Node</Button>
+          <Button size="small" onClick={() => addNode('output')}>End</Button>
+        </Space>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+        >
+          <Controls />
+          <MiniMap />
+          <Background />
+        </ReactFlow>
       </Modal>
     </div>
   );

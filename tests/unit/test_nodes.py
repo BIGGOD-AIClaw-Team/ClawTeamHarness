@@ -8,6 +8,9 @@ from backend.src.agents.nodes import (
     EndNode,
     evaluate_condition,
     BaseNode,
+    NodeExecutionError,
+    CircuitBreaker,
+    execute_with_retry,
 )
 
 
@@ -121,3 +124,69 @@ class TestEvaluateCondition:
         state = {"context": {}, "messages": []}
         result = evaluate_condition("this is invalid syntax !!!", state)
         assert result == "default"
+
+
+class TestCircuitBreaker:
+    def setup_method(self):
+        self.cb = CircuitBreaker(failure_threshold=3)
+
+    def test_circuit_closed_initially(self):
+        assert self.cb.is_open("node1") is False
+
+    def test_record_success_resets(self):
+        self.cb.record_failure("node1")
+        self.cb.record_failure("node1")
+        self.cb.record_success("node1")
+        assert self.cb.failures["node1"] == 0
+
+    def test_opens_after_threshold(self):
+        self.cb.record_failure("node1")
+        self.cb.record_failure("node1")
+        self.cb.record_failure("node1")
+        assert self.cb.is_open("node1") is True
+
+    def test_record_failure_increments(self):
+        self.cb.record_failure("node1")
+        assert self.cb.failures["node1"] == 1
+        self.cb.record_failure("node1")
+        assert self.cb.failures["node1"] == 2
+
+
+class TestNodeExecutionError:
+    def test_error_attributes(self):
+        err = NodeExecutionError("my_node", "something went wrong", retryable=True)
+        assert err.node_name == "my_node"
+        assert err.retryable is True
+        assert "my_node" in str(err)
+
+    def test_error_not_retryable(self):
+        err = NodeExecutionError("node2", "fatal error", retryable=False)
+        assert err.retryable is False
+
+
+class TestExecuteWithRetry:
+    @pytest.mark.asyncio
+    async def test_retry_success_first_try(self):
+        class MockNode(BaseNode):
+            name = "mock"
+            async def execute(self, state):
+                return {"ok": True}
+
+        cb = CircuitBreaker(failure_threshold=3)
+        result = await execute_with_retry(MockNode(), {}, max_retries=3)
+        assert result == {"ok": True}
+
+    @pytest.mark.asyncio
+    async def test_retry_eventually_succeeds(self):
+        attempts = {"count": 0}
+        class FlakyNode(BaseNode):
+            name = "flaky"
+            async def execute(self, state):
+                attempts["count"] += 1
+                if attempts["count"] < 3:
+                    raise RuntimeError("not yet")
+                return {"ok": True}
+
+        result = await execute_with_retry(FlakyNode(), {}, max_retries=3)
+        assert result == {"ok": True}
+        assert attempts["count"] == 3

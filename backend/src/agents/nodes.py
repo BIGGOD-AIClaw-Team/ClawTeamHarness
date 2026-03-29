@@ -2,11 +2,89 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+class NodeExecutionError(Exception):
+    """Raised when a node execution fails."""
+
+    def __init__(self, node_name: str, message: str, retryable: bool = False):
+        self.node_name = node_name
+        self.retryable = retryable
+        super().__init__(f"Node '{node_name}' failed: {message}")
+
+
+class CircuitBreaker:
+    """Circuit breaker to prevent cascading failures across nodes."""
+
+    def __init__(self, failure_threshold: int = 3, timeout: int = 60):
+        self.failure_threshold = failure_threshold
+        self.timeout = timeout
+        self.failures: dict[str, int] = {}
+        self.last_failure_time: dict[str, float] = {}
+
+    def is_open(self, node_name: str) -> bool:
+        """Return True if the circuit breaker is open for the given node."""
+        if node_name not in self.failures:
+            return False
+        if self.failures[node_name] >= self.failure_threshold:
+            return True
+        return False
+
+    def record_success(self, node_name: str):
+        """Reset failure count on successful execution."""
+        self.failures[node_name] = 0
+
+    def record_failure(self, node_name: str):
+        """Record a failure and timestamp for the node."""
+        self.failures[node_name] = self.failures.get(node_name, 0) + 1
+        self.last_failure_time[node_name] = asyncio.get_event_loop().time()
+
+
+# Global circuit breaker instance
+circuit_breaker = CircuitBreaker()
+
+
+async def execute_with_retry(node: BaseNode, state: dict, max_retries: int = 3) -> dict:
+    """
+    Execute a node with automatic retry and circuit breaker protection.
+
+    Args:
+        node: The node instance to execute.
+        state: Current agent state dict.
+        max_retries: Maximum number of retry attempts.
+
+    Returns:
+        Merged state dict from node execution.
+
+    Raises:
+        NodeExecutionError: If all retries are exhausted or circuit breaker is open.
+    """
+    node_name = getattr(node, "name", str(node))
+
+    for attempt in range(max_retries):
+        try:
+            if circuit_breaker.is_open(node_name):
+                raise NodeExecutionError(
+                    node_name, "Circuit breaker open", retryable=False
+                )
+
+            result = await node.execute(state)
+            circuit_breaker.record_success(node_name)
+            return result
+
+        except Exception as e:
+            if attempt == max_retries - 1:
+                circuit_breaker.record_failure(node_name)
+                raise NodeExecutionError(
+                    node_name, str(e), retryable=True
+                )
+            await asyncio.sleep(0.5 * (attempt + 1))  # Exponential backoff
 
 
 class BaseNode(ABC):
