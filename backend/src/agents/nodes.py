@@ -137,18 +137,21 @@ class LLMNode(BaseNode):
     LLM invocation node.
     
     Calls an LLM with the given prompt template and state context.
+    Supports both non-streaming and streaming modes.
     """
     name = "llm"
     input_schema = {"messages": list}
     output_schema = {"response": str, "messages": list}
 
     def __init__(self, model: str = "gpt-4", prompt_template: str = "",
-                 temperature: float = 0.7, max_tokens: int = 2048, top_p: float = 1.0):
+                 temperature: float = 0.7, max_tokens: int = 2048, top_p: float = 1.0,
+                 stream: bool = False):
         self.model = model
         self.prompt_template = prompt_template
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.top_p = top_p
+        self.stream = stream
 
     async def execute(self, state: dict) -> dict:
         """Execute LLM call."""
@@ -159,7 +162,10 @@ class LLMNode(BaseNode):
         llm_messages = self._build_messages(self.prompt_template, context, messages)
         
         # Call the LLM
-        response = await self._call_llm(llm_messages)
+        if self.stream:
+            response = await self._call_llm_stream(llm_messages)
+        else:
+            response = await self._call_llm(llm_messages)
         
         new_messages = messages + [{"role": "assistant", "content": response}]
         
@@ -193,7 +199,7 @@ class LLMNode(BaseNode):
         return llm_messages
 
     async def _call_llm(self, messages: list) -> str:
-        """Call the LLM. Override this method for custom LLM backends."""
+        """Call the LLM (non-streaming). Override this method for custom LLM backends."""
         import os
         from openai import AsyncOpenAI
 
@@ -207,6 +213,38 @@ class LLMNode(BaseNode):
             top_p=self.top_p,
         )
         return response.choices[0].message.content
+
+    async def _call_llm_stream(self, messages: list) -> str:
+        """
+        流式调用 LLM
+        
+        Args:
+            messages: 消息列表
+            
+        Returns:
+            完整的响应文本
+        """
+        import os
+        from typing import AsyncGenerator
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(api_key=os.getenv("LLM_API_KEY"))
+
+        full_response = ""
+        stream = await client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            top_p=self.top_p,
+            stream=True,
+        )
+        
+        async for chunk in stream:
+            if chunk.choices[0].delta.content:
+                full_response += chunk.choices[0].delta.content
+        
+        return full_response
 
 
 class ToolNode(BaseNode):

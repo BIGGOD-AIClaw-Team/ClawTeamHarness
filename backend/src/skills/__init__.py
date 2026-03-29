@@ -6,8 +6,15 @@ from .protocol import (
     register_skill,
 )
 
-# Auto-load built-in skills
-from .builtin import SearchSkill, WebRequestSkill, CalculatorSkill
+# Auto-load built-in skills and register them
+from .builtin.search import SearchSkill
+from .builtin.calculator import CalculatorSkill
+from .builtin.web_request import WebRequestSkill
+
+# Register built-in skills automatically when module is loaded
+SkillRegistry.register(SearchSkill)
+SkillRegistry.register(CalculatorSkill)
+SkillRegistry.register(WebRequestSkill)
 
 __all__ = [
     "BaseSkill",

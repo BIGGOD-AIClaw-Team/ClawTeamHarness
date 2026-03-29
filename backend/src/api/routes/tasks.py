@@ -1,10 +1,14 @@
+"""Task queue API routes."""
 import uuid
 import asyncio
+import logging
 from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -14,6 +18,16 @@ class TaskQueue:
 
     def __init__(self):
         self._tasks: dict[str, dict] = {}
+        self._agents: dict[str, dict] = {}  # 存储已加载的 Agent 图
+
+    def register_agent(self, agent_id: str, agent_data: dict) -> None:
+        """注册一个 Agent 图定义"""
+        self._agents[agent_id] = agent_data
+        logger.info(f"Agent registered: {agent_id}")
+
+    def _load_agent(self, agent_id: str) -> Optional[dict]:
+        """加载 Agent 图定义"""
+        return self._agents.get(agent_id)
 
     def create_task(self, agent_id: str, input_data: dict) -> str:
         task_id = str(uuid.uuid4())
@@ -23,16 +37,54 @@ class TaskQueue:
             "status": "pending",
             "input": input_data,
             "result": None,
+            "error": None,
             "created_at": datetime.now().isoformat(),
         }
         # 异步执行
         asyncio.create_task(self._execute_task(task_id))
         return task_id
 
-    async def _execute_task(self, task_id: str):
-        self._tasks[task_id]["status"] = "running"
-        # TODO: 集成 Agent 执行
-        self._tasks[task_id]["status"] = "completed"
+    async def _execute_task(self, task_id: str) -> None:
+        """执行任务：加载 Agent 图并通过 AgentEngine 执行"""
+        task = self._tasks.get(task_id)
+        if not task:
+            logger.error(f"Task {task_id} not found")
+            return
+
+        task["status"] = "running"
+
+        try:
+            agent_id = task["agent_id"]
+            input_data = task["input"]
+
+            # 加载 Agent 图
+            agent_data = self._load_agent(agent_id)
+            if agent_data is None:
+                raise ValueError(f"Agent '{agent_id}' not found in registry")
+
+            # 反序列化并执行 Agent
+            from ...agents.engine import AgentEngine
+            from ...agents.serializer import GraphSerializer
+
+            engine = GraphSerializer.deserialize(agent_data)
+
+            # 构建初始状态
+            initial_state = {
+                "messages": input_data.get("messages", []),
+                "context": input_data.get("context", {}),
+                "current_node": "",
+            }
+
+            # 执行 Agent
+            result = await engine.execute(initial_state)
+
+            task["status"] = "completed"
+            task["result"] = result
+
+        except Exception as e:
+            logger.exception(f"Task {task_id} execution failed")
+            task["status"] = "failed"
+            task["error"] = str(e)
 
     def get_task(self, task_id: str) -> Optional[dict]:
         return self._tasks.get(task_id)

@@ -1,7 +1,18 @@
+"""WebSocket API routes for real-time streaming."""
+import time
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict
 
 router = APIRouter(tags=["websocket"])
+
+
+class WSEventType:
+    """WebSocket 事件类型定义"""
+    NODE_START = "node_start"          # 节点开始执行
+    NODE_COMPLETE = "node_complete"    # 节点执行完成
+    TOKEN_STREAM = "token_stream"       # LLM 流式 token
+    EXECUTION_COMPLETE = "execution_complete"  # 执行完成
+    ERROR = "error"                     # 执行错误
 
 
 class ConnectionManager:
@@ -28,6 +39,23 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+
+
+async def send_event(session_id: str, event_type: str, data: dict) -> None:
+    """
+    向指定 session 发送 WebSocket 事件
+    
+    Args:
+        session_id: 会话 ID
+        event_type: 事件类型 (WSEventType.*)
+        data: 事件数据
+    """
+    if session_id in manager.active_connections:
+        await manager.active_connections[session_id].send_json({
+            "type": event_type,
+            "data": data,
+            "timestamp": time.time(),
+        })
 
 
 @router.websocket("/ws/{session_id}")
