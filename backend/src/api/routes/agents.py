@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 import logging
+from ...db.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -220,6 +221,28 @@ async def unpublish_agent(agent_id: str):
     
     return {"status": "unpublished", "agent_id": agent_id}
 
+@router.get("/{agent_id}/conversations")
+async def get_conversations(agent_id: str):
+    """获取 Agent 的所有会话"""
+    path = AGENTS_DIR / f"{agent_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    db = get_db()
+    conversations = db.get_conversations(agent_id)
+    return {"conversations": conversations}
+
+@router.get("/{agent_id}/messages/{conversation_id}")
+async def get_messages(agent_id: str, conversation_id: int):
+    """获取会话的所有消息"""
+    path = AGENTS_DIR / f"{agent_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    db = get_db()
+    messages = db.get_messages(conversation_id)
+    return {"messages": messages}
+
 class AgentExecuteRequest(BaseModel):
     message: str = ""
     session_id: Optional[str] = None
@@ -277,7 +300,7 @@ async def execute_agent(agent_id: str, request: AgentExecuteRequest):
 
 @router.post("/{agent_id}/stream")
 async def stream_agent(agent_id: str, request: AgentExecuteRequest):
-    """流式对话 - 返回 Server-Sent Events"""
+    """流式对话 - 返回 Server-Sent Events，支持历史消息"""
     from ...agents.simple_agent import Agent as SimpleAgent
 
     # 加载 Agent
@@ -303,7 +326,30 @@ async def stream_agent(agent_id: str, request: AgentExecuteRequest):
             yield f"data: {error_data}\n\n"
         return StreamingResponse(error_gen(), media_type="text/event-stream")
 
+    # 获取 session_id
+    session_id = request.session_id or f"session_{agent_id}_{int(datetime.now().timestamp())}"
+
     async def generate():
+        db = get_db()
+        is_new_session = False
+        
+        # 查找会话
+        conversation = db.get_conversation_by_session(agent_id, session_id)
+        if not conversation:
+            # 新会话：先保存用户消息（会自动创建会话）
+            db.save_message(agent_id, session_id, "user", user_message)
+            conversation = db.get_conversation_by_session(agent_id, session_id)
+            is_new_session = True
+        
+        conv_id = conversation["id"]
+        
+        # 从数据库加载历史消息
+        history_msgs = db.get_messages(conv_id)
+        
+        # 如果是新会话，历史中最后一条是刚存的用户消息，需要排除（Agent 会自己处理）
+        if is_new_session and history_msgs and history_msgs[-1]["content"] == user_message:
+            history_msgs = history_msgs[:-1]
+        
         try:
             # 创建简单的 Agent
             agent = SimpleAgent(
@@ -313,10 +359,19 @@ async def stream_agent(agent_id: str, request: AgentExecuteRequest):
                 memory_config=memory_config,
             )
             
+            # 加载历史到 Agent
+            for msg in history_msgs:
+                agent.messages.append({"role": msg["role"], "content": msg["content"]})
+            
             # 流式调用 LLM
+            full_response = ""
             async for chunk in agent.stream_chat(user_message):
+                full_response += chunk
                 data_chunk = json.dumps({"chunk": chunk}, ensure_ascii=False)
                 yield f"data: {data_chunk}\n\n"
+            
+            # 保存助手回复到数据库
+            db.save_message(agent_id, session_id, "assistant", full_response)
             
             yield f"data: {json.dumps({'done': True}, ensure_ascii=False)}\n\n"
             

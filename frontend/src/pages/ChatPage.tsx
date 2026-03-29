@@ -1,7 +1,60 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card, Input, Button, List, Avatar, Alert, Spin } from 'antd';
+import { Card, Input, Button, List, Avatar, Alert } from 'antd';
 import { marked } from 'marked';
 import hljs from 'highlight.js';
+
+// Sci-Fi CSS Animations
+const sciFiStyles = `
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  
+  @keyframes thinkingDots {
+    0% { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75% { content: '...'; }
+  }
+  
+  .message-enter {
+    animation: slideIn 0.3s ease-out;
+  }
+  
+  .user-message {
+    border-radius: 16px 16px 4px 16px !important;
+  }
+  
+  .assistant-message {
+    border-radius: 16px 16px 16px 4px !important;
+  }
+  
+  .thinking-indicator::after {
+    content: '...';
+    animation: blink 1s infinite;
+  }
+  
+  .thinking-dots {
+    display: inline-block;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+`;
 
 // 配置 marked
 marked.use({
@@ -168,12 +221,41 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
   };
 
   // 创建新对话
-  const startNewChat = (agentId: string) => {
+  const startNewChat = async (agentId: string) => {
+    // 创建新会话
+    const sessionId = `session_${Date.now()}`;
     const newSession: ChatSession = {
-      session_id: `session_${Date.now()}`,
+      session_id: sessionId,
       agent_id: agentId,
       messages: [],
     };
+    
+    // 尝试加载历史会话
+    try {
+      const sessionsResp = await fetch(`/api/agents/${agentId}/conversations`);
+      const sessionsData = await sessionsResp.json();
+      
+      if (sessionsData.conversations && sessionsData.conversations.length > 0) {
+        // 使用最新的会话
+        const latestConv = sessionsData.conversations[0];
+        const messagesResp = await fetch(`/api/agents/${agentId}/messages/${latestConv.id}`);
+        const messagesData = await messagesResp.json();
+        
+        if (messagesData.messages && messagesData.messages.length > 0) {
+          newSession.session_id = latestConv.session_id;
+          newSession.messages = messagesData.messages.map((msg: any, idx: number) => ({
+            id: `${idx}`,
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content,
+            timestamp: new Date().toISOString(),
+          }));
+        }
+      }
+    } catch (e) {
+      // 加载失败，继续使用空会话
+      console.error('Failed to load history:', e);
+    }
+    
     setCurrentSession(newSession);
     setSessions(prev => [...prev, newSession]);
   };
@@ -194,6 +276,8 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
   };
 
   return (
+    <>
+      <style>{sciFiStyles}</style>
     <div style={{ display: 'flex', height: 'calc(100vh - 120px)' }}>
       {/* 左侧：Agent 列表 */}
       <div style={{ width: 280, borderRight: '1px solid #f0f0f0', padding: 16 }}>
@@ -239,10 +323,20 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
                 renderItem={(msg: Message) => (
                   <List.Item style={{ border: 'none', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                     <Card 
+                      className={msg.role === 'user' ? 'user-message' : 'assistant-message'}
                       style={{ 
                         maxWidth: '70%', 
-                        background: msg.role === 'user' ? '#1890ff' : '#f5f5f5',
-                        color: msg.role === 'user' ? 'white' : 'black',
+                        background: msg.role === 'user' 
+                          ? 'linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(0, 212, 255, 0.1) 100%)'
+                          : 'linear-gradient(135deg, rgba(124, 58, 237, 0.3) 0%, rgba(124, 58, 237, 0.1) 100%)',
+                        border: msg.role === 'user' 
+                          ? '1px solid rgba(0, 212, 255, 0.5)'
+                          : '1px solid rgba(124, 58, 237, 0.5)',
+                        color: msg.role === 'user' ? '#e0f7ff' : '#e0d6ff',
+                        boxShadow: msg.role === 'user'
+                          ? '0 0 15px rgba(0, 212, 255, 0.2)'
+                          : '0 0 15px rgba(124, 58, 237, 0.2)',
+                        animation: 'slideIn 0.3s ease-out',
                       }}
                       bodyStyle={{ padding: 12 }}
                     >
@@ -265,8 +359,17 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
               {/* 思考中状态 */}
               {streaming && (
                 <div style={{ display: 'flex', alignItems: 'center', padding: '8px 16px' }}>
-                  <Spin size="small" style={{ marginRight: 8 }} />
-                  <span style={{ color: '#888' }}>思考中...</span>
+                  <div style={{
+                    display: 'flex',
+                    gap: 4,
+                    marginRight: 8,
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#00d4ff', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: '0ms' }} />
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#7c3aed', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: '200ms' }} />
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#00d4ff', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: '400ms' }} />
+                  </div>
+                  <span style={{ color: '#00d4ff', textShadow: '0 0 10px rgba(0, 212, 255, 0.5)' }}>思考中</span>
+                  <span className="thinking-dots" style={{ color: '#7c3aed' }}>...</span>
                 </div>
               )}
               
@@ -317,5 +420,6 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
         )}
       </div>
     </div>
+    </>
   );
 }

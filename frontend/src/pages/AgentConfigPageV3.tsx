@@ -278,6 +278,40 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete }: Agen
     }
   };
 
+  const handleDelete = async () => {
+    if (!agentId) return;
+    if (!window.confirm('确定要删除这个 Agent 吗？此操作不可撤销。')) return;
+    try {
+      const resp = await fetch(`/api/agents/${agentId}`, {
+        method: 'DELETE',
+      });
+      if (resp.ok) {
+        message.success('删除成功');
+        setAgentId(null);
+        // Reset form
+        setConfig({
+          name: '',
+          description: '',
+          llm: { provider: 'openai', model: 'gpt-4o', api_key: '', temperature: 0.7 },
+          mode: { type: 'react', max_iterations: 10 },
+          prompt: { system: '' },
+          memory: { enabled: true, type: 'hybrid' },
+          decision: { auto_critique: true },
+          tools: { enabled: true },
+          prompt_template: 'assistant',
+          enable_suggestions: false,
+          suggestions: '',
+        });
+        onEditComplete?.();
+      } else {
+        const data = await resp.json();
+        message.error(data.detail || '删除失败');
+      }
+    } catch (e) {
+      message.error('删除失败');
+    }
+  };
+
   const handleProviderChange = (provider: string) => {
     setConfig({
       ...config,
@@ -577,6 +611,20 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete }: Agen
         >
           🚀 发布
         </Button>
+        {agentId && (
+          <Button
+            size="large"
+            onClick={handleDelete}
+            danger
+            style={{
+              background: 'rgba(255, 71, 87, 0.1)',
+              border: '1px solid rgba(255, 71, 87, 0.5)',
+              color: '#ff4757',
+            }}
+          >
+            🗑️ 删除
+          </Button>
+        )}
       </div>
     </div>
   );
