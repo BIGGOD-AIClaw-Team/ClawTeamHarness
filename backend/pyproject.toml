@@ -1,0 +1,19 @@
+[project]
+name = "claw-team-harness"
+version = "1.0.0-alpha"
+description = "AI Agent Harness - 一站式 AI Agent 开发与运行平台"
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "pytest-cov", "black", "ruff"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
