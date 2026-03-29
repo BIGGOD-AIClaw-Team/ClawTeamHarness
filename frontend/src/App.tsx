@@ -4,6 +4,7 @@ import { AgentPage } from './pages/AgentPage';
 import { APIPage } from './pages/APIPage';
 import { MemoryPage } from './pages/MemoryPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ChatPage } from './pages/ChatPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 const BotIcon = () => (
@@ -32,6 +33,12 @@ const SettingsIcon = () => (
   </svg>
 );
 
+const ChatIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+    <path d="M20 2H4a2 2 0 00-2 2v18l4-4h14a2 2 0 002-2V4a2 2 0 00-2-2zm0 14H6l-2 2V4h16v12z"/>
+  </svg>
+);
+
 const { Header, Sider, Content } = Layout;
 
 function App() {
@@ -40,6 +47,7 @@ function App() {
 
   const menuItems = [
     { key: 'agents', icon: <BotIcon />, label: 'Agent 编排' },
+    { key: 'chat', icon: <ChatIcon />, label: '对话' },
     { key: 'api', icon: <ApiIcon />, label: 'API' },
     { key: 'memory', icon: <DatabaseIcon />, label: '记忆' },
     { key: 'settings', icon: <SettingsIcon />, label: '设置' },
@@ -48,6 +56,7 @@ function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'agents': return <AgentPage />;
+      case 'chat': return <ChatPage />;
       case 'api': return <APIPage />;
       case 'memory': return <MemoryPage />;
       case 'settings': return <SettingsPage />;

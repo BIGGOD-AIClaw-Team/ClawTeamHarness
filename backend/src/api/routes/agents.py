@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List
 import json
 from pathlib import Path
+from datetime import datetime
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
@@ -18,19 +19,22 @@ class AgentUpdateRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     graph_def: Optional[dict] = None
+    status: Optional[str] = None
 
 @router.get("/")
-async def list_agents():
-    """列出所有 Agent"""
+async def list_agents(status: str = Query(None)):
+    """列出 Agent，支持按状态筛选"""
     agents = []
     for f in AGENTS_DIR.glob("*.json"):
         with open(f) as fp:
-            agents.append(json.load(fp))
+            agent = json.load(fp)
+            if status is None or agent.get("status") == status:
+                agents.append(agent)
     return {"agents": agents}
 
 @router.post("/")
 async def create_agent(request: AgentCreateRequest):
-    """创建 Agent"""
+    """创建 Agent（初始状态为草稿）"""
     agent_id = request.name.lower().replace(" ", "_")
     path = AGENTS_DIR / f"{agent_id}.json"
     if path.exists():
@@ -41,12 +45,13 @@ async def create_agent(request: AgentCreateRequest):
         "name": request.name,
         "description": request.description,
         "graph_def": request.graph_def,
+        "status": "draft",
     }
     
     with open(path, "w") as f:
         json.dump(agent_data, f, indent=2)
     
-    return {"agent_id": agent_id, "status": "created"}
+    return {"agent_id": agent_id, "status": "created", "agent_status": "draft"}
 
 @router.get("/{agent_id}")
 async def get_agent(agent_id: str):
@@ -74,6 +79,8 @@ async def update_agent(agent_id: str, request: AgentUpdateRequest):
         agent_data["description"] = request.description
     if request.graph_def is not None:
         agent_data["graph_def"] = request.graph_def
+    if request.status is not None:
+        agent_data["status"] = request.status
     
     with open(path, "w") as f:
         json.dump(agent_data, f, indent=2)
@@ -88,6 +95,25 @@ async def delete_agent(agent_id: str):
         raise HTTPException(status_code=404, detail="Agent not found")
     path.unlink()
     return {"status": "deleted"}
+
+
+@router.post("/{agent_id}/publish")
+async def publish_agent(agent_id: str):
+    """发布 Agent"""
+    path = AGENTS_DIR / f"{agent_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    with open(path) as f:
+        data = json.load(f)
+    
+    data["status"] = "published"
+    data["published_at"] = datetime.now().isoformat()
+    
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+    
+    return {"status": "published", "agent_id": agent_id}
 
 
 class AgentExecuteRequest(BaseModel):
