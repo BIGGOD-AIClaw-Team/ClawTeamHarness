@@ -24,7 +24,7 @@ FALLBACK_MODELS = {
     "openai": ["gpt-4", "gpt-3.5-turbo", "gpt-4-turbo", "gpt-4o", "gpt-4o-mini"],
     "anthropic": ["claude-3-5-sonnet", "claude-3-5-haiku", "claude-3-opus", "claude-3-sonnet", "claude-3-haiku"],
     "glm": ["glm-4", "glm-4-plus", "glm-3-turbo", "glm-4v", "glm-4v-plus"],
-    "minimax": ["abab6-chat", "abab5.5-chat", "abab6.5s-chat"],
+    "minimax": ["MiniMax-M2.7", "MiniMax-M2.5", "MiniMax-M2.1", "abab6-chat", "abab5.5-chat", "abab6.5s-chat"],
     "qwen": ["qwen-turbo", "qwen-plus", "qwen-max", "qwen-coder-turbo", "qwen-max-longcontext"],
     "doubao": ["doubao-pro-32k", "doubao-lite-32k", "doubao-pro-128k"],
     "wenxin": ["ernie-4.0-8k", "ernie-3.5-8k", "ernie-4.0-128k", "ernie-speed-128k"],

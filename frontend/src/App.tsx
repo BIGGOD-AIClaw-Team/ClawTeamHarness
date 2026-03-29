@@ -152,7 +152,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ConfigProvider theme={sciFiTheme}>
-        <Layout style={{ minHeight: '100vh', background: '#0a0e17' }}>
+        <Layout style={{ height: '100vh', background: '#0a0e17', overflow: 'hidden' }}>
           <Header style={headerStyle}>
             <div style={{ 
               fontSize: 20, 
@@ -198,7 +198,7 @@ function App() {
                 theme="dark"
               />
             </Sider>
-            <Content style={{ padding: '24px', minHeight: 280, background: '#0a0e17' }}>
+            <Content style={{ padding: '24px', height: 'calc(100vh - 64px)', overflow: 'auto', background: '#0a0e17' }}>
               {renderPage()}
             </Content>
           </Layout>

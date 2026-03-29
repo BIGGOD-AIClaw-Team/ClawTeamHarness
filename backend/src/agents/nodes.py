@@ -145,13 +145,14 @@ class LLMNode(BaseNode):
 
     def __init__(self, model: str = "gpt-4", prompt_template: str = "",
                  temperature: float = 0.7, max_tokens: int = 2048, top_p: float = 1.0,
-                 stream: bool = False):
+                 stream: bool = False, api_key: str = None):
         self.model = model
         self.prompt_template = prompt_template
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.top_p = top_p
         self.stream = stream
+        self.api_key = api_key
 
     async def execute(self, state: dict) -> dict:
         """Execute LLM call."""
@@ -203,7 +204,8 @@ class LLMNode(BaseNode):
         import os
         from openai import AsyncOpenAI
 
-        client = AsyncOpenAI(api_key=os.getenv("LLM_API_KEY"))
+        api_key = self.api_key or os.getenv("LLM_API_KEY")
+        client = AsyncOpenAI(api_key=api_key)
 
         response = await client.chat.completions.create(
             model=self.model,
@@ -228,7 +230,8 @@ class LLMNode(BaseNode):
         from typing import AsyncGenerator
         from openai import AsyncOpenAI
 
-        client = AsyncOpenAI(api_key=os.getenv("LLM_API_KEY"))
+        api_key = self.api_key or os.getenv("LLM_API_KEY")
+        client = AsyncOpenAI(api_key=api_key)
 
         full_response = ""
         stream = await client.chat.completions.create(

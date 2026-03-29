@@ -129,17 +129,18 @@ async def publish_agent(agent_id: str):
 
 
 class AgentExecuteRequest(BaseModel):
+    message: str = ""
+    session_id: Optional[str] = None
     input_data: dict = {}
 
 
 @router.post("/{agent_id}/execute")
 async def execute_agent(agent_id: str, request: AgentExecuteRequest):
     """触发 Agent 执行"""
-    # 集成 AgentEngine
     from ...agents.engine import AgentEngine
     from ...agents.serializer import GraphSerializer
 
-    # 加载 Agent 图
+    # 加载 Agent
     path = AGENTS_DIR / f"{agent_id}.json"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -147,7 +148,36 @@ async def execute_agent(agent_id: str, request: AgentExecuteRequest):
     with open(path) as f:
         data = json.load(f)
 
-    engine = GraphSerializer.deserialize(data)
-    result = await engine.execute(request.input_data)
+    # 取出配置
+    llm_config = data.get("llm_config", {})
+    mode_config = data.get("mode_config", {})
+    prompt_config = data.get("prompt_config", {})
+    graph_def = data.get("graph_def", {})
+
+    # 用配置初始化 Engine
+    engine = AgentEngine(
+        graph_def=graph_def,
+        llm_config=llm_config,
+        agent_mode_config=mode_config,
+    )
+
+    # 构造初始消息
+    system_prompt = prompt_config.get("system", "你是一个智能助手。")
+    user_message = request.message or request.input_data.get("message", "")
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    if user_message:
+        messages.append({"role": "user", "content": user_message})
+
+    # 执行
+    thread_id = request.session_id or "default"
+    try:
+        result = await engine.execute(
+            initial_state={"messages": messages, "context": {}, "result": {}},
+            thread_id=thread_id,
+        )
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
     return {"status": "completed", "result": result}

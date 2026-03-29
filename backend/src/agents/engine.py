@@ -256,6 +256,7 @@ class AgentEngine:
                 temperature=config.get("temperature", 0.7),
                 max_tokens=config.get("max_tokens", 2048),
                 top_p=config.get("top_p", 1.0),
+                api_key=self.llm_config.get("api_key") or config.get("api_key"),
             )
             return await node.execute(state)
         elif node_type == "tool":

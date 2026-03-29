@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card, Input, Button, List, Avatar } from 'antd';
+import { Card, Input, Button, List, Avatar, Alert, Spin } from 'antd';
 
 interface Message {
   id: string;
@@ -19,6 +19,7 @@ export function ChatPage() {
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 加载已发布的 Agent 列表
@@ -48,21 +49,39 @@ export function ChatPage() {
     
     setInput('');
     setLoading(true);
+    setError(null);
     
     try {
       // 调用 Agent 执行
       const resp = await fetch(`/api/agents/${currentSession.agent_id}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: { message: input }, session_id: currentSession.session_id }),
+        body: JSON.stringify({ message: input, session_id: currentSession.session_id }),
       });
       
       const result = await resp.json();
       
+      if (!resp.ok || result.error) {
+        setError(result.error || result.detail || '执行失败');
+        setLoading(false);
+        return;
+      }
+      
+      // 从 result.result 中提取响应内容
+      let responseText = 'Agent 已收到消息';
+      if (result.result) {
+        // 尝试多种可能的结果格式
+        responseText = result.result.response 
+          || result.result.message 
+          || result.result.text
+          || result.result.content
+          || JSON.stringify(result.result);
+      }
+      
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: result.result?.response || result.result?.message || 'Agent 响应中...',
+        content: responseText,
         timestamp: new Date().toISOString(),
       };
       
@@ -70,8 +89,8 @@ export function ChatPage() {
         ...prev,
         messages: [...prev.messages, assistantMessage],
       } : null);
-    } catch (e) {
-      console.error('Agent execution failed:', e);
+    } catch (e: any) {
+      setError('请求失败: ' + (e.message || '网络错误'));
     } finally {
       setLoading(false);
     }
@@ -146,6 +165,18 @@ export function ChatPage() {
               <div ref={messagesEndRef} />
             </div>
             
+            {/* 错误提示 */}
+            {error && (
+              <Alert
+                message={error}
+                type="error"
+                showIcon
+                closable
+                onClose={() => setError(null)}
+                style={{ marginBottom: 12 }}
+              />
+            )}
+
             {/* 输入框 */}
             <div style={{ display: 'flex', gap: 8 }}>
               <Input.TextArea
@@ -153,6 +184,7 @@ export function ChatPage() {
                 onChange={e => setInput(e.target.value)}
                 placeholder="输入消息..."
                 autoSize={{ minRows: 1, maxRows: 4 }}
+                disabled={loading}
                 onPressEnter={(e) => {
                   if (!e.shiftKey) {
                     e.preventDefault();
@@ -160,7 +192,7 @@ export function ChatPage() {
                   }
                 }}
               />
-              <Button type="primary" onClick={sendMessage} loading={loading}>
+              <Button type="primary" onClick={sendMessage} loading={loading} disabled={loading}>
                 发送
               </Button>
             </div>

@@ -28,6 +28,13 @@ const MEMORY_TYPES = [
   { value: 'hybrid', label: '混合记忆 (推荐)' },
 ];
 
+const PROMPT_TEMPLATES = [
+  { value: 'assistant', label: '🤖 AI 助手', template: '你是一个专业的AI助手，帮助用户解答问题、完成各种任务。' },
+  { value: 'coder', label: '💻 代码助手', template: '你是一个经验丰富的程序员，擅长Python、JavaScript、TypeScript等语言，帮助用户编写、调试和优化代码。' },
+  { value: 'analyst', label: '📊 分析师', template: '你是一个专业的数据分析师，擅长分析数据、发现规律、提供洞察和建议。' },
+  { value: 'custom', label: '✏️ 自定义', template: '' },
+];
+
 const inputStyle: React.CSSProperties = {
   background: 'rgba(0, 0, 0, 0.3)',
   border: '1px solid rgba(0, 212, 255, 0.3)',
@@ -57,6 +64,10 @@ export function AgentConfigPageV3() {
     memory: { enabled: true, type: 'hybrid' },
     decision: { auto_critique: true },
     tools: { enabled: true },
+    // 新功能
+    prompt_template: 'assistant',
+    enable_suggestions: false,
+    suggestions: '',
   });
   const [models, setModels] = useState<string[]>([]);
   const [testing, setTesting] = useState(false);
@@ -156,6 +167,10 @@ export function AgentConfigPageV3() {
           memory_config: config.memory,
           decision_config: config.decision,
           tools_config: config.tools,
+          // 新功能
+          prompt_template: config.prompt_template,
+          enable_suggestions: config.enable_suggestions,
+          suggestions: config.suggestions,
           status: 'draft',
         }),
       });
@@ -205,7 +220,7 @@ export function AgentConfigPageV3() {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      minHeight: 'calc(100vh - 64px)',
       background: '#0a0e17',
       padding: '24px',
       color: '#e0e6ed',
@@ -373,7 +388,23 @@ export function AgentConfigPageV3() {
 
         {/* Prompt Config */}
         <SciFiCard title="📝 提示词" icon="💬">
-          <div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>提示词模板</label>
+            <Select
+              style={selectStyle}
+              value={config.prompt_template}
+              onChange={v => {
+                const tpl = PROMPT_TEMPLATES.find(t => t.value === v);
+                setConfig({ 
+                  ...config, 
+                  prompt_template: v,
+                  prompt: { ...config.prompt, system: tpl?.template || config.prompt.system }
+                });
+              }}
+              options={PROMPT_TEMPLATES.map(t => ({ value: t.value, label: t.label }))}
+            />
+          </div>
+          <div style={{ marginBottom: 12 }}>
             <label style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>系统提示词</label>
             <Input.TextArea
               style={{ ...inputStyle, resize: 'none' }}
@@ -383,6 +414,23 @@ export function AgentConfigPageV3() {
               onChange={e => setConfig({ ...config, prompt: { ...config.prompt, system: e.target.value } })}
             />
           </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ color: '#888', fontSize: 12 }}>上下文推荐问题</span>
+            <Switch
+              size="small"
+              checked={config.enable_suggestions}
+              onChange={v => setConfig({ ...config, enable_suggestions: v })}
+            />
+          </div>
+          {config.enable_suggestions && (
+            <Input.TextArea
+              style={{ ...inputStyle, resize: 'none' }}
+              rows={3}
+              placeholder="每行一个问题，Agent会根据上下文推荐这些问题"
+              value={config.suggestions}
+              onChange={e => setConfig({ ...config, suggestions: e.target.value })}
+            />
+          )}
         </SciFiCard>
 
         {/* Memory Config */}
