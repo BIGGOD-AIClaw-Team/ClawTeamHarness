@@ -48,18 +48,94 @@ const ConfigIcon = () => (
 
 const { Header, Sider, Content } = Layout;
 
+// 科幻风格主题
+const sciFiTheme = {
+  algorithm: theme.darkAlgorithm,
+  token: {
+    colorPrimary: '#00d4ff',
+    colorBgBase: '#0a0e17',
+    colorText: '#e0e6ed',
+    colorBorder: 'rgba(0, 212, 255, 0.3)',
+    colorBorderSecondary: 'rgba(0, 212, 255, 0.1)',
+    colorBgContainer: 'rgba(0, 20, 40, 0.8)',
+    colorBgElevated: 'rgba(0, 20, 40, 0.9)',
+    colorBgLayout: '#0a0e17',
+    borderRadius: 6,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  },
+  components: {
+    Layout: {
+      headerBg: 'linear-gradient(90deg, rgba(0, 212, 255, 0.1) 0%, rgba(124, 58, 237, 0.1) 100%)',
+      bodyBg: '#0a0e17',
+      siderBg: 'rgba(0, 20, 40, 0.8)',
+    },
+    Menu: {
+      darkItemBg: 'transparent',
+      darkItemSelectedBg: 'rgba(0, 212, 255, 0.1)',
+      darkItemHoverBg: 'rgba(0, 212, 255, 0.05)',
+      darkItemColor: '#888',
+      darkItemSelectedColor: '#00d4ff',
+    },
+    Card: {
+      colorBgContainer: 'rgba(0, 20, 40, 0.8)',
+      colorBorderSecondary: 'rgba(0, 212, 255, 0.3)',
+    },
+    Input: {
+      colorBgContainer: 'rgba(0, 10, 20, 0.8)',
+      colorBorder: 'rgba(0, 212, 255, 0.3)',
+      activeBorderColor: '#00d4ff',
+      hoverBorderColor: 'rgba(0, 212, 255, 0.5)',
+    },
+    Select: {
+      colorBgContainer: 'rgba(0, 10, 20, 0.8)',
+      colorBorder: 'rgba(0, 212, 255, 0.3)',
+      optionSelectedBg: 'rgba(0, 212, 255, 0.2)',
+    },
+    Button: {
+      primaryShadow: '0 0 10px rgba(0, 212, 255, 0.3)',
+    },
+    Table: {
+      colorBgContainer: 'rgba(0, 20, 40, 0.8)',
+      headerBg: 'rgba(0, 40, 60, 0.8)',
+      rowHoverBg: 'rgba(0, 212, 255, 0.05)',
+    },
+  },
+};
+
+const navItemStyle = (active: boolean) => ({
+  color: active ? '#00d4ff' : '#888',
+  borderLeft: active ? '3px solid #00d4ff' : '3px solid transparent',
+  background: active ? 'rgba(0, 212, 255, 0.1)' : 'transparent',
+  margin: '4px 0',
+  borderRadius: '0 6px 6px 0',
+});
+
 function App() {
   const [currentPage, setCurrentPage] = useState('agent-config-v3');
-  const [darkMode, setDarkMode] = useState(false);
 
   const menuItems = [
-    { key: 'agent-config-v3', icon: <ConfigIcon />, label: 'Agent 配置' },
-    { key: 'chat', icon: <ChatIcon />, label: '对话' },
-    { key: 'skills', icon: <SkillsIcon />, label: 'Skills' },
-    { key: 'memory', icon: <DatabaseIcon />, label: '记忆' },
-    { key: 'api', icon: <BotIcon />, label: 'API' },
-    { key: 'settings', icon: <SettingsIcon />, label: '设置' },
+    { key: 'agent-config-v3', icon: <ConfigIcon />, label: '🤖 Agent 配置' },
+    { key: 'chat', icon: <ChatIcon />, label: '💬 对话' },
+    { key: 'skills', icon: <SkillsIcon />, label: '🛠️ Skills' },
+    { key: 'memory', icon: <DatabaseIcon />, label: '🧠 记忆' },
+    { key: 'api', icon: <BotIcon />, label: '🔌 API' },
+    { key: 'settings', icon: <SettingsIcon />, label: '⚙️ 设置' },
   ];
+
+  const headerStyle = {
+    background: 'linear-gradient(90deg, rgba(0, 212, 255, 0.1) 0%, rgba(124, 58, 237, 0.1) 100%)',
+    borderBottom: '1px solid rgba(0, 212, 255, 0.3)',
+    padding: '0 24px',
+    height: 64,
+    display: 'flex',
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+  };
+
+  const menuStyle = {
+    background: 'transparent',
+    borderRight: '1px solid rgba(0, 212, 255, 0.2)',
+  };
 
   const renderPage = () => {
     switch (currentPage) {
@@ -75,45 +151,80 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <ConfigProvider
-        theme={{
-          algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
-          token: { colorPrimary: '#1890ff' },
-        }}
-      >
-        <Layout style={{ minHeight: '100vh' }}>
-          <Header style={{ color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
-            <div style={{ fontSize: '18px', fontWeight: 'bold' }}>🦊 ClawTeamHarness</div>
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              style={{
-                background: 'none',
-                border: '1px solid rgba(255,255,255,0.3)',
-                color: 'white',
-                padding: '4px 12px',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              {darkMode ? '🌞' : '🌙'}
-            </button>
+      <ConfigProvider theme={sciFiTheme}>
+        <Layout style={{ minHeight: '100vh', background: '#0a0e17' }}>
+          <Header style={headerStyle}>
+            <div style={{ 
+              fontSize: 20, 
+              fontWeight: 'bold', 
+              color: '#00d4ff', 
+              textShadow: '0 0 20px rgba(0, 212, 255, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}>
+              🦊 ClawTeamHarness
+            </div>
+            <div style={{ 
+              color: '#00ff88',
+              fontSize: 14,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}>
+              <span style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: '#00ff88',
+                boxShadow: '0 0 10px #00ff88',
+                animation: 'pulse 2s infinite',
+              }} />
+              在线
+            </div>
           </Header>
           <Layout>
-            <Sider width={200} style={{ background: darkMode ? '#141414' : '#fff' }}>
+            <Sider width={220} style={{ ...menuStyle, background: 'rgba(0, 20, 40, 0.8)' }}>
               <Menu
                 mode="inline"
                 selectedKeys={[currentPage]}
                 onClick={({ key }) => setCurrentPage(key)}
                 items={menuItems}
-                style={{ height: '100%', borderRight: 0 }}
+                style={{ 
+                  background: 'transparent', 
+                  borderRight: 0,
+                  padding: '16px 8px',
+                }}
+                theme="dark"
               />
             </Sider>
-            <Content style={{ padding: '24px', minHeight: 280 }}>
+            <Content style={{ padding: '24px', minHeight: 280, background: '#0a0e17' }}>
               {renderPage()}
             </Content>
           </Layout>
         </Layout>
       </ConfigProvider>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        * {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(0, 212, 255, 0.3) transparent;
+        }
+        *::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        *::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        *::-webkit-scrollbar-thumb {
+          background: rgba(0, 212, 255, 0.3);
+          border-radius: 3px;
+        }
+      `}</style>
     </ErrorBoundary>
   );
 }
