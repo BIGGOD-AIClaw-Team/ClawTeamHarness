@@ -1,6 +1,8 @@
-import React, { useCallback, useState } from 'react';
-import { Card, Tabs, Table, Tag, Button, Modal, Form, Input, message, Space, Popconfirm } from 'antd';
-import { PlusIcon, DeleteIcon, RocketIcon } from '../components/Icons';
+import React, { useCallback, useState, useEffect } from 'react';
+import { Card, Tabs, Table, Tag, Button, Modal, Form, Input, message, Space, Popconfirm, Switch, Divider, Typography } from 'antd';
+import { PlusIcon, DeleteIcon, RocketIcon, SaveIcon } from '../components/Icons';
+
+const { Text } = Typography;
 
 interface Skill {
   name: string;
@@ -23,6 +25,13 @@ export function SkillsPage() {
   const [isMCPModalOpen, setIsMCPModalOpen] = useState(false);
   const [form] = Form.useForm();
 
+  // Skills.md 内容
+  const [skillsMdContent, setSkillsMdContent] = useState('');
+  const [skillsMdPath, setSkillsMdPath] = useState('');
+  const [loadingSkillsMd, setLoadingSkillsMd] = useState(false);
+  const [savingSkillsMd, setSavingSkillsMd] = useState(false);
+  const [isSkillsMdModalOpen, setIsSkillsMdModalOpen] = useState(false);
+
   const loadSkills = useCallback(() => {
     fetch('/api/skills/')
       .then(res => res.json())
@@ -37,7 +46,21 @@ export function SkillsPage() {
       .catch(err => message.error('加载 MCP Servers 失败: ' + err));
   }, []);
 
-  React.useEffect(() => {
+  const loadSkillsMdContent = useCallback(() => {
+    setLoadingSkillsMd(true);
+    fetch('/api/skills/content')
+      .then(res => res.json())
+      .then(data => {
+        setSkillsMdContent(data.content || '');
+        setSkillsMdPath(data.path || '');
+      })
+      .catch(err => {
+        message.error('加载 skills.md 失败: ' + err);
+      })
+      .finally(() => setLoadingSkillsMd(false));
+  }, []);
+
+  useEffect(() => {
     loadSkills();
     loadMCPServers();
   }, [loadSkills, loadMCPServers]);
@@ -66,6 +89,33 @@ export function SkillsPage() {
         loadMCPServers();
       })
       .catch(err => message.error('删除失败: ' + err));
+  };
+
+  const handleSaveSkillsMd = async () => {
+    setSavingSkillsMd(true);
+    try {
+      const resp = await fetch('/api/skills/content', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: skillsMdContent }),
+      });
+      if (resp.ok) {
+        message.success('skills.md 保存成功');
+        setIsSkillsMdModalOpen(false);
+      } else {
+        const data = await resp.json();
+        message.error(data.detail || '保存失败');
+      }
+    } catch (err: any) {
+      message.error('保存失败: ' + err.message);
+    } finally {
+      setSavingSkillsMd(false);
+    }
+  };
+
+  const handleOpenSkillsMdModal = () => {
+    loadSkillsMdContent();
+    setIsSkillsMdModalOpen(true);
   };
 
   const skillColumns = [
@@ -112,7 +162,14 @@ export function SkillsPage() {
             children: (
               <Card
                 title="Skills 配置"
-                extra={<Button icon={<RocketIcon />} onClick={loadSkills}>刷新</Button>}
+                extra={
+                  <Space>
+                    <Button icon={<RocketIcon />} onClick={loadSkills}>刷新</Button>
+                    <Button type="primary" icon={<SaveIcon />} onClick={handleOpenSkillsMdModal}>
+                      编辑 skills.md
+                    </Button>
+                  </Space>
+                }
               >
                 <Table
                   dataSource={skills}
@@ -175,6 +232,48 @@ export function SkillsPage() {
             <Button onClick={() => setIsMCPModalOpen(false)}>取消</Button>
           </Space>
         </Form>
+      </Modal>
+
+      {/* Skills.md 编辑 Modal */}
+      <Modal
+        title={
+          <div>
+            <span>📝 编辑 skills.md</span>
+            {skillsMdPath && (
+              <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
+                {skillsMdPath}
+              </Text>
+            )}
+          </div>
+        }
+        open={isSkillsMdModalOpen}
+        onCancel={() => setIsSkillsMdModalOpen(false)}
+        width={800}
+        footer={
+          <Space>
+            <Button onClick={() => setIsSkillsMdModalOpen(false)}>取消</Button>
+            <Button type="primary" icon={<SaveIcon />} onClick={handleSaveSkillsMd} loading={savingSkillsMd}>
+              保存
+            </Button>
+          </Space>
+        }
+      >
+        <Divider />
+        <div style={{ marginBottom: 12 }}>
+          <Text type="secondary">支持 Markdown 格式，保存后将更新 skills.md 配置文件</Text>
+        </div>
+        <Input.TextArea
+          value={skillsMdContent}
+          onChange={e => setSkillsMdContent(e.target.value)}
+          rows={20}
+          style={{ 
+            fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+            fontSize: 13,
+            background: '#0a1428',
+            color: '#e0e6ed',
+          }}
+          placeholder="# Skills 配置&#10;&#10;在此编辑 skills.md 内容..."
+        />
       </Modal>
     </div>
   );

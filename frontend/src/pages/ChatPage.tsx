@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Card, Input, Button, List, Avatar, Alert } from 'antd';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Card, Input, Button, List, Avatar, Alert, Select, message, Popconfirm, Modal } from 'antd';
 import { marked } from 'marked';
 import hljs from 'highlight.js';
 
@@ -26,11 +26,9 @@ const sciFiStyles = `
     50% { opacity: 1; }
   }
   
-  @keyframes thinkingDots {
-    0% { content: ''; }
-    25% { content: '.'; }
-    50% { content: '..'; }
-    75% { content: '...'; }
+  @keyframes typing {
+    from { width: 0; }
+    to { width: 100%; }
   }
   
   .message-enter {
@@ -53,6 +51,12 @@ const sciFiStyles = `
   .thinking-dots {
     display: inline-block;
     animation: pulse 1.5s ease-in-out infinite;
+  }
+  
+  .typewriter-text {
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 `;
 
@@ -84,6 +88,18 @@ interface ChatSession {
   messages: Message[];
 }
 
+interface LLMProvider {
+  value: string;
+  label: string;
+  models: { value: string; label: string }[];
+  capabilities: {
+    thinking: boolean;
+    tool_use: boolean;
+    vision: boolean;
+    embedding: boolean;
+  };
+}
+
 interface ChatPageProps {
   onEditAgent?: (agentId: string) => void;
 }
@@ -100,13 +116,69 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
   // 加载已发布的 Agent 列表
   const [publishedAgents, setPublishedAgents] = useState<any[]>([]);
   
+  // 当前选中的模型
+  const [currentModel, setCurrentModel] = useState<string>('gpt-4');
+  
+  // 可用模型列表
+  const [availableModels, setAvailableModels] = useState<LLMProvider[]>([]);
+  
+  // 加载系统设置获取模型列表
   useEffect(() => {
-    fetch('/api/agents/?status=published')
+    fetch('/api/settings/')
       .then(res => res.json())
-      .then(data => setPublishedAgents(data.agents || []));
+      .then(data => {
+        if (data.llm_providers) {
+          const providers = Object.entries(data.llm_providers).map(([key, val]: [string, any]) => ({
+            value: key,
+            label: val.name,
+            models: (val.models || []).map((m: string) => ({ value: m, label: m })),
+            capabilities: val.capabilities || {},
+          }));
+          setAvailableModels(providers);
+        }
+      })
+      .catch(() => {
+        // Fallback to default models
+        setAvailableModels([
+          { value: 'openai', label: 'OpenAI', models: [{ value: 'gpt-4', label: 'gpt-4' }, { value: 'gpt-4o', label: 'gpt-4o' }], capabilities: { thinking: true, tool_use: true, vision: true, embedding: true } },
+          { value: 'anthropic', label: 'Anthropic', models: [{ value: 'claude-3-5-sonnet', label: 'claude-3-5-sonnet' }], capabilities: { thinking: true, tool_use: false, vision: true, embedding: false } },
+        ]);
+      });
   }, []);
 
-  // 发送消息（流式）
+  // 加载已发布的 Agent 列表
+  const loadPublishedAgents = useCallback(() => {
+    fetch('/api/agents/?status=published')
+      .then(res => res.json())
+      .then(data => setPublishedAgents(data.agents || []))
+      .catch(err => console.error('Failed to load agents:', err));
+  }, []);
+
+  useEffect(() => {
+    loadPublishedAgents();
+  }, [loadPublishedAgents]);
+
+  // 删除 Agent
+  const handleDeleteAgent = async (agentId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const resp = await fetch(`/api/agents/${agentId}`, { method: 'DELETE' });
+      if (resp.ok) {
+        message.success('Agent 已删除');
+        loadPublishedAgents();
+        if (currentSession?.agent_id === agentId) {
+          setCurrentSession(null);
+        }
+      } else {
+        const data = await resp.json();
+        message.error(data.detail || '删除失败');
+      }
+    } catch (err) {
+      message.error('删除失败');
+    }
+  };
+
+  // 发送消息（流式）- 修复版：使用 ref 累积文本，减少 UI 更新
   const sendMessage = async () => {
     if (!input.trim() || !currentSession) return;
     
@@ -133,7 +205,11 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
       const resp = await fetch(`/api/agents/${currentSession.agent_id}/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userInput, session_id: currentSession.session_id }),
+        body: JSON.stringify({ 
+          message: userInput, 
+          session_id: currentSession.session_id,
+          model: currentModel, // 传递选中的模型
+        }),
       });
       
       if (!resp.ok) {
@@ -154,9 +230,9 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
       
       const decoder = new TextDecoder();
       let assistantContent = '';
+      const assistantMessageId = (Date.now() + 1).toString();
       
       // 添加空的 assistant 消息
-      const assistantMessageId = (Date.now() + 1).toString();
       setCurrentSession(prev => prev ? {
         ...prev,
         messages: [...prev.messages, {
@@ -166,6 +242,11 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
           timestamp: new Date().toISOString(),
         }],
       } : null);
+      
+      // 使用 ref 累积完整文本，避免每次 chunk 都 setState
+      const fullTextRef = { current: '' };
+      let lastUpdateTime = Date.now();
+      const UPDATE_INTERVAL = 50; // 每 50ms 更新一次 UI
       
       while (true) {
         const { done, value } = await reader.read();
@@ -180,20 +261,26 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
               const data = JSON.parse(line.slice(6));
               
               if (data.chunk) {
+                fullTextRef.current += data.chunk;
                 assistantContent += data.chunk;
-                // 实时更新消息
-                setCurrentSession(prev => {
-                  if (!prev) return prev;
-                  const msgs = [...prev.messages];
-                  const lastIdx = msgs.length - 1;
-                  if (msgs[lastIdx]?.role === 'assistant') {
-                    msgs[lastIdx] = {
-                      ...msgs[lastIdx],
-                      content: assistantContent,
-                    };
-                  }
-                  return { ...prev, messages: msgs };
-                });
+                
+                // 节流：只在一定时间间隔内更新 UI
+                const now = Date.now();
+                if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+                  lastUpdateTime = now;
+                  setCurrentSession(prev => {
+                    if (!prev) return prev;
+                    const msgs = [...prev.messages];
+                    const lastIdx = msgs.length - 1;
+                    if (msgs[lastIdx]?.role === 'assistant') {
+                      msgs[lastIdx] = {
+                        ...msgs[lastIdx],
+                        content: fullTextRef.current,
+                      };
+                    }
+                    return { ...prev, messages: msgs };
+                  });
+                }
               }
               
               if (data.done || data.error) {
@@ -208,6 +295,20 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
           }
         }
       }
+      
+      // 最终更新：确保显示完整文本
+      setCurrentSession(prev => {
+        if (!prev) return prev;
+        const msgs = [...prev.messages];
+        const lastIdx = msgs.length - 1;
+        if (msgs[lastIdx]?.role === 'assistant') {
+          msgs[lastIdx] = {
+            ...msgs[lastIdx],
+            content: fullTextRef.current,
+          };
+        }
+        return { ...prev, messages: msgs };
+      });
       
       setStreaming(false);
       
@@ -275,6 +376,15 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
     }
   };
 
+  // 模型选择器选项
+  const modelOptions = availableModels.flatMap(p => 
+    p.models.map(m => ({
+      value: m.value,
+      label: `${m.label} (${p.label})`,
+      disabled: !p.capabilities.thinking,
+    }))
+  );
+
   return (
     <>
       <style>{sciFiStyles}</style>
@@ -290,16 +400,36 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
               key={agent.agent_id}
               style={{ cursor: 'pointer', padding: 8 }}
               onClick={() => startNewChat(agent.agent_id)}
-              actions={onEditAgent ? [
-                <Button 
-                  key="edit" 
-                  size="small" 
-                  type="text" 
-                  onClick={(e) => { e.stopPropagation(); onEditAgent(agent.agent_id); }}
+              actions={[
+                onEditAgent ? (
+                  <Button 
+                    key="edit" 
+                    size="small" 
+                    type="text" 
+                    onClick={(e) => { e.stopPropagation(); onEditAgent(agent.agent_id); }}
+                  >
+                    ✏️
+                  </Button>
+                ) : null,
+                <Popconfirm
+                  key="delete"
+                  title="确认删除"
+                  description={`确定要删除 Agent "${agent.name}" 吗？`}
+                  onConfirm={(e) => handleDeleteAgent(agent.agent_id, e as any)}
+                  okText="删除"
+                  cancelText="取消"
+                  okButtonProps={{ danger: true }}
                 >
-                  ✏️ 编辑
-                </Button>
-              ] : []}
+                  <Button 
+                    size="small" 
+                    type="text" 
+                    danger
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    🗑️
+                  </Button>
+                </Popconfirm>
+              ].filter(Boolean)}
             >
               <List.Item.Meta
                 avatar={<Avatar style={{ backgroundColor: '#1890ff' }}>🤖</Avatar>}
@@ -315,6 +445,30 @@ export function ChatPage({ onEditAgent }: ChatPageProps) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16 }}>
         {currentSession ? (
           <>
+            {/* 模型选择器 */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 12, 
+              marginBottom: 12,
+              padding: '8px 12px',
+              background: 'rgba(0, 20, 40, 0.6)',
+              borderRadius: 8,
+              border: '1px solid rgba(0, 212, 255, 0.2)',
+            }}>
+              <span style={{ color: '#888', fontSize: 13 }}>模型：</span>
+              <Select
+                value={currentModel}
+                onChange={setCurrentModel}
+                options={modelOptions}
+                style={{ minWidth: 200 }}
+                dropdownStyle={{ background: '#0a1428' }}
+              />
+              <span style={{ color: '#666', fontSize: 11 }}>
+                {availableModels.find(p => p.models.some(m => m.value === currentModel))?.capabilities.thinking ? '✓ 支持思考' : ''}
+              </span>
+            </div>
+            
             {/* 消息列表 */}
             <div style={{ flex: 1, overflow: 'auto', marginBottom: 16 }}>
               <List

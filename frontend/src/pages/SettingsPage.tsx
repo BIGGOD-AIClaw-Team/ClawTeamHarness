@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, Form, Input, Button, Switch, message, Divider, Typography, Space, Table, Tag, Modal, Popconfirm } from 'antd';
+import { Card, Form, Input, Button, Switch, message, Divider, Typography, Space, Table, Tag, Modal, Popconfirm, Select, Collapse } from 'antd';
 import { SaveIcon, PlusIcon, DeleteIcon } from '../components/Icons';
 
 const { Title, Text } = Typography;
@@ -25,6 +25,31 @@ interface OntologyConfig {
   relations: string[];
 }
 
+interface LLMProvider {
+  name: string;
+  provider: string;
+  models: string[];
+  capabilities: {
+    thinking: boolean;
+    tool_use: boolean;
+    vision: boolean;
+    embedding: boolean;
+  };
+}
+
+interface DefaultLLMConfig {
+  text: string;
+  embedding: string;
+  vision: string;
+  tool_use: string;
+}
+
+interface SystemSettings {
+  default_llm: DefaultLLMConfig;
+  llm_providers: Record<string, LLMProvider>;
+  log_level: string;
+}
+
 export function SettingsPage() {
   const [form] = Form.useForm();
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -37,6 +62,14 @@ export function SettingsPage() {
   const [mcpForm] = Form.useForm();
   const [isOntologyModalOpen, setIsOntologyModalOpen] = useState(false);
   const [ontologyForm] = Form.useForm();
+
+  // 系统设置
+  const [systemSettings, setSystemSettings] = useState<SystemSettings>({
+    default_llm: { text: 'gpt-4', embedding: 'text-embedding-3-small', vision: 'gpt-4o', tool_use: 'gpt-4' },
+    llm_providers: {},
+    log_level: 'INFO',
+  });
+  const [settingsLoading, setSettingsLoading] = useState(true);
 
   // Load skills from API
   const loadSkills = () => {
@@ -82,16 +115,44 @@ export function SettingsPage() {
       });
   };
 
+  // 加载系统设置
+  const loadSystemSettings = () => {
+    setSettingsLoading(true);
+    fetch('/api/settings/')
+      .then(res => res.json())
+      .then(data => {
+        setSystemSettings(data);
+        setSettingsLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to load settings:', err);
+        setSettingsLoading(false);
+        message.error('加载系统设置失败');
+      });
+  };
+
   useEffect(() => {
     loadSkills();
     loadMcpServers();
     loadOntology();
+    loadSystemSettings();
   }, []);
 
   const handleSave = () => {
     setLoading(true);
-    message.success('设置已保存');
-    setLoading(false);
+    fetch('/api/settings/', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(systemSettings),
+    })
+      .then(res => res.json())
+      .then(() => {
+        message.success('设置已保存');
+      })
+      .catch(err => {
+        message.error('保存失败: ' + err);
+      })
+      .finally(() => setLoading(false));
   };
 
   // Skill management
@@ -167,6 +228,22 @@ export function SettingsPage() {
       });
   };
 
+  // 构建模型选择选项
+  const buildModelOptions = () => {
+    const options: { value: string; label: string; disabled?: boolean }[] = [];
+    Object.entries(systemSettings.llm_providers || {}).forEach(([key, provider]) => {
+      provider.models?.forEach(model => {
+        const disabled = provider.capabilities?.thinking ? false : !provider.capabilities?.thinking;
+        options.push({
+          value: model,
+          label: `${model} (${provider.name})`,
+          disabled: !provider.capabilities?.thinking,
+        });
+      });
+    });
+    return options;
+  };
+
   const skillColumns = [
     { title: '名称', dataIndex: 'name', key: 'name' },
     { title: '版本', dataIndex: 'version', key: 'version', width: 80 },
@@ -208,29 +285,150 @@ export function SettingsPage() {
     },
   ];
 
+  // LLM Provider 显示列
+  const providerColumns = [
+    { title: '提供商', dataIndex: 'name', key: 'name', render: (name: string, record: LLMProvider) => (
+      <Tag color="cyan">{name}</Tag>
+    )},
+    { title: 'Provider Key', dataIndex: 'provider', key: 'provider' },
+    { title: '模型数', key: 'modelCount', render: (_: any, record: LLMProvider) => record.models?.length || 0 },
+    { 
+      title: '能力', 
+      key: 'capabilities',
+      render: (_: any, record: LLMProvider) => (
+        <Space>
+          {record.capabilities?.thinking && <Tag color="green">🧠思考</Tag>}
+          {record.capabilities?.tool_use && <Tag color="blue">🔧工具</Tag>}
+          {record.capabilities?.vision && <Tag color="purple">👁️视觉</Tag>}
+          {record.capabilities?.embedding && <Tag color="orange">📊向量</Tag>}
+        </Space>
+      )
+    },
+  ];
+
   return (
     <div>
       <Title level={4}>系统设置</Title>
       
-      {/* LLM 配置 */}
-      <Card title="LLM 配置" style={{ marginBottom: 16 }}>
-        <Form form={form} layout="vertical" onFinish={handleSave} initialValues={{
-          llm_provider: 'openai',
-          llm_model: 'gpt-4',
-          log_level: 'INFO',
-        }}>
-          <Form.Item name="llm_provider" label="LLM Provider">
-            <Input placeholder="openai" />
-          </Form.Item>
-          <Form.Item name="llm_model" label="模型">
-            <Input placeholder="gpt-4" />
-          </Form.Item>
-          <Text type="secondary">API Key 请通过环境变量 LLM_API_KEY 配置</Text>
-          <Divider />
-          <Button type="primary" icon={<SaveIcon />} htmlType="submit" loading={loading}>
-            保存设置
-          </Button>
-        </Form>
+      {/* LLM 默认模型配置 */}
+      <Card title="🤖 默认大模型配置" style={{ marginBottom: 16 }}>
+        {settingsLoading ? (
+          <Text>加载中...</Text>
+        ) : (
+          <Form layout="vertical" onFinish={handleSave}>
+            <Collapse 
+              defaultActiveKey={['text', 'embedding', 'vision', 'tool_use']}
+              items={[
+                {
+                  key: 'text',
+                  label: '💬 文本对话模型',
+                  children: (
+                    <Form.Item label="默认模型">
+                      <Select
+                        value={systemSettings.default_llm?.text}
+                        onChange={v => setSystemSettings(prev => ({
+                          ...prev,
+                          default_llm: { ...prev.default_llm, text: v }
+                        }))}
+                        options={buildModelOptions().filter(o => !o.disabled)}
+                        style={{ width: 300 }}
+                        placeholder="选择默认文本模型"
+                      />
+                      <Text type="secondary" style={{ marginLeft: 8 }}>
+                        用于普通对话、生成文本等
+                      </Text>
+                    </Form.Item>
+                  ),
+                },
+                {
+                  key: 'embedding',
+                  label: '📊 Embedding 模型',
+                  children: (
+                    <Form.Item label="默认模型">
+                      <Select
+                        value={systemSettings.default_llm?.embedding}
+                        onChange={v => setSystemSettings(prev => ({
+                          ...prev,
+                          default_llm: { ...prev.default_llm, embedding: v }
+                        }))}
+                        options={buildModelOptions().filter(o => o.label.includes('embedding') || o.value.includes('embedding') || o.value.includes('text-embedding'))}
+                        style={{ width: 300 }}
+                        placeholder="选择默认 Embedding 模型"
+                      />
+                      <Text type="secondary" style={{ marginLeft: 8 }}>
+                        用于向量检索、语义搜索等
+                      </Text>
+                    </Form.Item>
+                  ),
+                },
+                {
+                  key: 'vision',
+                  label: '👁️ 视觉模型',
+                  children: (
+                    <Form.Item label="默认模型">
+                      <Select
+                        value={systemSettings.default_llm?.vision}
+                        onChange={v => setSystemSettings(prev => ({
+                          ...prev,
+                          default_llm: { ...prev.default_llm, vision: v }
+                        }))}
+                        options={buildModelOptions().filter(o => !o.disabled)}
+                        style={{ width: 300 }}
+                        placeholder="选择默认视觉模型"
+                      />
+                      <Text type="secondary" style={{ marginLeft: 8 }}>
+                        用于图片理解、视觉问答等
+                      </Text>
+                    </Form.Item>
+                  ),
+                },
+                {
+                  key: 'tool_use',
+                  label: '🔧 工具调用模型',
+                  children: (
+                    <Form.Item label="默认模型">
+                      <Select
+                        value={systemSettings.default_llm?.tool_use}
+                        onChange={v => setSystemSettings(prev => ({
+                          ...prev,
+                          default_llm: { ...prev.default_llm, tool_use: v }
+                        }))}
+                        options={buildModelOptions().filter(o => !o.disabled)}
+                        style={{ width: 300 }}
+                        placeholder="选择默认工具调用模型"
+                      />
+                      <Text type="secondary" style={{ marginLeft: 8 }}>
+                        用于 Agent 工具调用、ReAct 推理等
+                      </Text>
+                    </Form.Item>
+                  ),
+                },
+              ]}
+            />
+
+            <Divider />
+
+            {/* 已配置模型提供商 */}
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>已配置模型提供商</Text>
+            <Table
+              dataSource={Object.entries(systemSettings.llm_providers || {}).map(([key, val]) => ({
+                key,
+                provider: key,
+                ...val,
+              }))}
+              columns={providerColumns}
+              pagination={false}
+              size="small"
+              locale={{ emptyText: '暂无配置' }}
+            />
+            
+            <Divider />
+            
+            <Button type="primary" icon={<SaveIcon />} htmlType="submit" loading={loading}>
+              保存设置
+            </Button>
+          </Form>
+        )}
       </Card>
 
       {/* Skills 配置 */}
@@ -328,10 +526,21 @@ export function SettingsPage() {
 
       {/* 日志配置 */}
       <Card title="日志配置" style={{ marginBottom: 16 }}>
-        <Form layout="vertical" onFinish={handleSave} initialValues={{ log_level: 'INFO' }}>
+        <Form layout="vertical" onFinish={handleSave} initialValues={{ log_level: systemSettings.log_level || 'INFO' }}>
           <Form.Item name="log_level" label="日志级别">
-            <Input placeholder="DEBUG, INFO, WARNING, ERROR" />
+            <Select
+              style={{ width: 200 }}
+              options={[
+                { value: 'DEBUG', label: 'DEBUG' },
+                { value: 'INFO', label: 'INFO' },
+                { value: 'WARNING', label: 'WARNING' },
+                { value: 'ERROR', label: 'ERROR' },
+              ]}
+            />
           </Form.Item>
+          <Button type="primary" icon={<SaveIcon />} htmlType="submit" loading={loading}>
+            保存
+          </Button>
         </Form>
       </Card>
 
