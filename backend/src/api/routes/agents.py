@@ -208,8 +208,8 @@ class AgentExecuteRequest(BaseModel):
 
 @router.post("/{agent_id}/execute")
 async def execute_agent(agent_id: str, request: AgentExecuteRequest):
-    """触发 Agent 执行"""
-    from ...agents.engine import AgentEngine
+    """触发 Agent 执行 - 使用简洁的 Agent 模式"""
+    from ...agents.simple_agent import Agent as SimpleAgent
 
     # 加载 Agent
     path = AGENTS_DIR / f"{agent_id}.json"
@@ -221,45 +221,37 @@ async def execute_agent(agent_id: str, request: AgentExecuteRequest):
 
     # 取出配置
     llm_config = data.get("llm_config", {})
-    mode_config = data.get("mode_config", {})
     prompt_config = data.get("prompt_config", {})
-    graph_def = data.get("graph_def", {})
+    memory_config = data.get("memory_config", {})
 
     logger.info(f"=== execute_agent {agent_id} ===")
     logger.info(f"llm_config: {llm_config}")
-    logger.info(f"mode_config: {mode_config}")
     logger.info(f"prompt_config: {prompt_config}")
-    logger.info(f"graph_def nodes: {[n.get('id') for n in graph_def.get('nodes', [])]}")
 
-    # 用配置初始化 Engine
-    engine = AgentEngine(
-        graph_def=graph_def,
-        llm_config=llm_config,
-        agent_mode_config=mode_config,
-        prompt_config=prompt_config,
-    )
-
-    # 构造初始消息
-    system_prompt = prompt_config.get("system", "你是一个有帮助的AI助手。")
+    # 用户消息
     user_message = request.message or request.input_data.get("message", "")
-    messages = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
-    if user_message:
-        messages.append({"role": "user", "content": user_message})
+    if not user_message:
+        return {"status": "error", "error": "消息不能为空"}
 
-    logger.info(f"Initial messages: {messages}")
-
-    # 执行
-    thread_id = request.session_id or "default"
     try:
-        result = await engine.execute(
-            initial_state={"messages": messages, "context": {}, "result": {}},
-            thread_id=thread_id,
+        # 创建简单的 Agent
+        agent = SimpleAgent(
+            name=agent_id,
+            llm_config=llm_config,
+            prompt_config=prompt_config,
+            memory_config=memory_config,
         )
-        logger.info(f"Execution result: {result}")
+        
+        # 直接对话
+        response = await agent.chat(user_message)
+        
+        return {
+            "status": "completed",
+            "result": {
+                "response": response,
+                "agent_id": agent_id,
+            }
+        }
     except Exception as e:
-        logger.exception(f"Execution failed: {e}")
+        logger.exception(f"Agent execution failed: {e}")
         return {"status": "error", "error": str(e)}
-
-    return {"status": "completed", "result": result}
