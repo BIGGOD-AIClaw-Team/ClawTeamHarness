@@ -7,6 +7,12 @@ from enum import Enum
 class LLMProvider(str, Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
+    GLM = "glm"           # 智谱AI
+    MINIMAX = "minimax"    # 稀宇科技
+    QWEN = "qwen"          # 通义千问
+    DOUBÃO = "doubao"      # 字节豆包
+    WENXIN = "wenxin"      # 百度文心
+    HUNYUAN = "hunyuan"    # 腾讯混元
     LOCAL = "local"
 
 
@@ -28,10 +34,11 @@ class MemoryType(str, Enum):
 class LLMConfig(BaseModel):
     provider: LLMProvider = LLMProvider.OPENAI
     model: str = "gpt-4"
+    api_key: Optional[str] = None  # 加密存储
+    base_url: Optional[str] = None  # 自定义 endpoint
     temperature: float = 0.7
     max_tokens: int = 2048
     top_p: Optional[float] = 1.0
-    api_key: Optional[str] = None  # 从环境变量读取
 
 
 class AgentModeConfig(BaseModel):

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ConfigProvider, Layout, Menu, theme } from 'antd';
 import { AgentPage } from './pages/AgentPage';
 import { AgentConfigPage } from './pages/AgentConfigPage';
+import { AgentConfigPageV3 } from './pages/AgentConfigPageV3';
 import { MemoryPage } from './pages/MemoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ChatPage } from './pages/ChatPage';
@@ -55,6 +56,7 @@ function App() {
   const menuItems = [
     { key: 'agents', icon: <BotIcon />, label: 'Agent 编排' },
     { key: 'agent-config', icon: <ConfigIcon />, label: 'Agent 配置' },
+    { key: 'agent-config-v3', icon: <ConfigIcon />, label: 'Agent 配置 V3' },
     { key: 'chat', icon: <ChatIcon />, label: '对话' },
     { key: 'skills', icon: <SkillsIcon />, label: 'Skills' },
     { key: 'memory', icon: <DatabaseIcon />, label: '记忆' },
@@ -65,6 +67,7 @@ function App() {
     switch (currentPage) {
       case 'agents': return <AgentPage />;
       case 'agent-config': return <AgentConfigPage />;
+      case 'agent-config-v3': return <AgentConfigPageV3 />;
       case 'chat': return <ChatPage />;
       case 'skills': return <SkillsPage />;
       case 'memory': return <MemoryPage />;
