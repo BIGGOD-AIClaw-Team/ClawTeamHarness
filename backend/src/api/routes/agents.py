@@ -159,6 +159,7 @@ async def execute_agent(agent_id: str, request: AgentExecuteRequest):
         graph_def=graph_def,
         llm_config=llm_config,
         agent_mode_config=mode_config,
+        prompt_config=prompt_config,
     )
 
     # 构造初始消息

@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import operator
+import os
 from dataclasses import dataclass, field
 from typing import Any, TypedDict, Annotated, Optional
 
@@ -59,6 +60,7 @@ class AgentEngine:
         name: Optional[str] = None,
         llm_config: Optional[dict] = None,
         agent_mode_config: Optional[dict] = None,
+        prompt_config: Optional[dict] = None,
     ):
         """
         Initialize the Agent engine.
@@ -72,10 +74,12 @@ class AgentEngine:
             name: Agent name (for config-based creation).
             llm_config: LLM configuration dict.
             agent_mode_config: Agent mode configuration dict.
+            prompt_config: Prompt configuration dict (with "system" key).
         """
         self.name = name or "agent"
         self.llm_config = llm_config or {}
         self.agent_mode_config = agent_mode_config or {}
+        self.prompt_config = prompt_config or {}
         self.graph_def = graph_def or {}
         self._nodes: dict[str, dict] = {}
         self._edges: list[dict] = []
@@ -158,9 +162,10 @@ class AgentEngine:
         """Build the LangGraph StateGraph from graph_def or default config."""
         graph_def = self.graph_def
 
-        # If no graph_def provided but we have config, build a default graph
-        if not graph_def and (self.llm_config or self.agent_mode_config):
+        # If no graph_def provided or empty, build a default graph from config
+        if (not graph_def or not graph_def.get("nodes")) and (self.llm_config or self.agent_mode_config):
             graph_def = self._build_default_graph()
+            self.graph_def = graph_def  # Update stored graph_def
 
         nodes_def = graph_def.get("nodes", [])
         edges_def = graph_def.get("edges", [])
@@ -184,8 +189,9 @@ class AgentEngine:
             raw_type = node_def.get("type", "llm")
             node_type = TYPE_MAP.get(raw_type, raw_type)  # Map UI types, keep others as-is
             # Graph nodes may use "config" or "data" field for node configuration
-            config = node_def.get("config", node_def.get("data", {}))
-            self._nodes[node_id] = {"type": node_type, "config": config}
+            config = node_def.get("config", {})
+            node_data = node_def.get("data", {})
+            self._nodes[node_id] = {"type": node_type, "config": config, "data": node_data}
             
             # Create node function and add to graph
             workflow.add_node(node_id, self._make_node_fn(node_id))
@@ -248,9 +254,13 @@ class AgentEngine:
             
             node_type = node_def["type"]
             config = node_def["config"]
+            # Also pass data field if present (UI nodes use "data" for node metadata)
+            node_data = node_def.get("data", {})
+            # Merge data into config for label access
+            full_config = {**config, **node_data}
             
             try:
-                result = await self._execute_node(node_id, node_type, config, state)
+                result = await self._execute_node(node_id, node_type, full_config, state)
                 return {
                     "current_node": node_id,
                     "context": {**state.get("context", {}), f"{node_id}_result": result},
@@ -269,25 +279,41 @@ class AgentEngine:
         """Execute a single node based on its type."""
         from .nodes import LLMNode, ToolNode, ConditionNode
         
-        if node_type == "llm":
+        node_label = config.get("label", "")
+        
+        # Determine effective type: check label for LLM indicators
+        effective_type = node_type
+        if node_type not in ("start", "end", "llm", "tool", "condition"):
+            # Check label for LLM-related keywords
+            if "LLM" in node_label or "对话" in node_label or "chat" in node_label.lower():
+                effective_type = "llm"
+        
+        if effective_type == "llm":
+            # Get system prompt from prompt_config or config
+            prompt_template = config.get("prompt", "")
+            if not prompt_template:
+                prompt_template = self.prompt_config.get("system", "")
+            if not prompt_template:
+                prompt_template = f"你是一个有帮助的AI助手。{node_label}"
+            
             node = LLMNode(
-                model=config.get("model", "gpt-4"),
-                prompt_template=config.get("prompt", ""),
-                temperature=config.get("temperature", 0.7),
+                model=config.get("model", self.llm_config.get("model", "gpt-4")),
+                prompt_template=prompt_template,
+                temperature=float(config.get("temperature", self.llm_config.get("temperature", 0.7))),
                 max_tokens=config.get("max_tokens", 2048),
                 top_p=config.get("top_p", 1.0),
-                api_key=self.llm_config.get("api_key") or config.get("api_key"),
+                api_key=self.llm_config.get("api_key") or config.get("api_key") or os.getenv("LLM_API_KEY"),
             )
             return await node.execute(state)
-        elif node_type == "tool":
+        elif effective_type == "tool":
             node = ToolNode(tool_name=config.get("tool_name", ""), tool_params=config.get("tool_params", {}))
             return await node.execute(state)
-        elif node_type == "condition":
+        elif effective_type == "condition":
             node = ConditionNode(condition=config.get("condition", ""))
             return await node.execute(state)
-        elif node_type == "start":
+        elif effective_type == "start":
             return {"status": "started"}
-        elif node_type == "end":
+        elif effective_type == "end":
             return {"status": "finished"}
         else:
             logger.warning(f"Unknown node type: {node_type}, skipping")

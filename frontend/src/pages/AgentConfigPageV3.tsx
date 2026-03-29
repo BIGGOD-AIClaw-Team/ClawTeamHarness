@@ -53,8 +53,13 @@ interface TestResult {
   error_code?: string;
 }
 
-export function AgentConfigPageV3() {
-  const [agentId, setAgentId] = useState<string | null>(null);
+interface AgentConfigPageV3Props {
+  agentId?: string | null;
+  onEditComplete?: () => void;
+}
+
+export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete }: AgentConfigPageV3Props) {
+  const [agentId, setAgentId] = useState<string | null>(propAgentId || null);
   const [config, setConfig] = useState({
     name: '',
     description: '',
@@ -113,6 +118,34 @@ export function AgentConfigPageV3() {
       setModels([]);
     }
   }, [config.llm.provider, config.llm.api_key]);
+
+  // 加载已有 Agent 配置
+  useEffect(() => {
+    if (propAgentId) {
+      setAgentId(propAgentId);
+      fetch(`/api/agents/${propAgentId}`)
+        .then(res => res.json())
+        .then(data => {
+          setConfig({
+            name: data.name || '',
+            description: data.description || '',
+            llm: data.llm_config || { provider: 'openai', model: 'gpt-4o', api_key: '', temperature: 0.7 },
+            mode: data.mode_config || { type: 'react', max_iterations: 10 },
+            prompt: data.prompt_config || { system: '' },
+            memory: data.memory_config || { enabled: true, type: 'hybrid' },
+            decision: data.decision_config || { auto_critique: true },
+            tools: data.tools_config || { enabled: true },
+            prompt_template: data.prompt_template || 'assistant',
+            enable_suggestions: data.enable_suggestions || false,
+            suggestions: data.suggestions || '',
+          });
+        })
+        .catch(err => {
+          console.error('Failed to load agent:', err);
+          message.error('加载 Agent 失败');
+        });
+    }
+  }, [propAgentId]);
 
   const testConnection = async () => {
     if (!config.llm.api_key) {
@@ -227,9 +260,16 @@ export function AgentConfigPageV3() {
     }}>
       {/* Header */}
       <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ color: '#00d4ff', margin: 0, textShadow: '0 0 20px rgba(0, 212, 255, 0.5)', fontSize: '24px' }}>
-          🤖 Agent 配置中心 V3
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {agentId && (
+            <Button size="small" onClick={onEditComplete} type="text" style={{ color: '#888' }}>
+              ← 返回
+            </Button>
+          )}
+          <h1 style={{ color: '#00d4ff', margin: 0, textShadow: '0 0 20px rgba(0, 212, 255, 0.5)', fontSize: '24px' }}>
+            {agentId ? '✏️ 编辑 Agent' : '🤖 Agent 配置中心 V3'}
+          </h1>
+        </div>
         <Tag color="green">🟢 在线</Tag>
       </div>
 

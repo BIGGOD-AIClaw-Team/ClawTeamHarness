@@ -112,6 +112,12 @@ const navItemStyle = (active: boolean) => ({
 
 function App() {
   const [currentPage, setCurrentPage] = useState('agent-config-v3');
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+
+  const startEditAgent = (agentId: string) => {
+    setEditingAgentId(agentId);
+    setCurrentPage('agent-config-v3');
+  };
 
   const menuItems = [
     { key: 'agent-config-v3', icon: <ConfigIcon />, label: '🤖 Agent 配置' },
@@ -139,8 +145,8 @@ function App() {
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'agent-config-v3': return <AgentConfigPageV3 />;
-      case 'chat': return <ChatPage />;
+      case 'agent-config-v3': return <AgentConfigPageV3 key={editingAgentId || 'new'} agentId={editingAgentId} onEditComplete={() => setEditingAgentId(null)} />;
+      case 'chat': return <ChatPage onEditAgent={startEditAgent} />;
       case 'skills': return <SkillsPage />;
       case 'memory': return <MemoryPage />;
       case 'api': return <APIPage />;

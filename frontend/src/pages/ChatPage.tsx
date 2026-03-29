@@ -14,7 +14,11 @@ interface ChatSession {
   messages: Message[];
 }
 
-export function ChatPage() {
+interface ChatPageProps {
+  onEditAgent?: (agentId: string) => void;
+}
+
+export function ChatPage({ onEditAgent }: ChatPageProps) {
   const [_sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [input, setInput] = useState('');
@@ -125,6 +129,16 @@ export function ChatPage() {
               key={agent.agent_id}
               style={{ cursor: 'pointer', padding: 8 }}
               onClick={() => startNewChat(agent.agent_id)}
+              actions={onEditAgent ? [
+                <Button 
+                  key="edit" 
+                  size="small" 
+                  type="text" 
+                  onClick={(e) => { e.stopPropagation(); onEditAgent(agent.agent_id); }}
+                >
+                  ✏️ 编辑
+                </Button>
+              ] : []}
             >
               <List.Item.Meta
                 avatar={<Avatar style={{ backgroundColor: '#1890ff' }}>🤖</Avatar>}
