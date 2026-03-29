@@ -10,6 +10,18 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 AGENTS_DIR = Path("./data/agents")
 AGENTS_DIR.mkdir(parents=True, exist_ok=True)
 
+DEFAULT_AGENT_GRAPH = {
+    "nodes": [
+        {"id": "start-1", "position": {"x": 250, "y": 0}, "data": {"label": "开始"}, "type": "input"},
+        {"id": "llm-1", "position": {"x": 250, "y": 100}, "data": {"label": "LLM 对话"}, "type": "default"},
+        {"id": "end-1", "position": {"x": 250, "y": 200}, "data": {"label": "结束"}, "type": "output"},
+    ],
+    "edges": [
+        {"id": "e1", "source": "start-1", "target": "llm-1"},
+        {"id": "e2", "source": "llm-1", "target": "end-1"},
+    ]
+}
+
 class AgentCreateRequest(BaseModel):
     name: str
     description: Optional[str] = ""
@@ -44,7 +56,7 @@ async def create_agent(request: AgentCreateRequest):
         "agent_id": agent_id,
         "name": request.name,
         "description": request.description,
-        "graph_def": request.graph_def,
+        "graph_def": request.graph_def if request.graph_def.get("nodes") else DEFAULT_AGENT_GRAPH,
         "status": "draft",
     }
     

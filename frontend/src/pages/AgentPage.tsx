@@ -20,17 +20,14 @@ interface Agent {
 }
 
 const initialNodes: Node[] = [
-  { id: '1', position: { x: 250, y: 5 }, data: { label: 'Start' }, type: 'input' },
-  { id: '2', position: { x: 100, y: 100 }, data: { label: 'LLM' }, type: 'default' },
-  { id: '3', position: { x: 400, y: 100 }, data: { label: 'Tool' }, type: 'default' },
-  { id: '4', position: { x: 250, y: 200 }, data: { label: 'End' }, type: 'output' },
+  { id: 'start-1', position: { x: 250, y: 0 }, data: { label: '开始' }, type: 'input' },
+  { id: 'llm-1', position: { x: 250, y: 100 }, data: { label: 'LLM 对话' }, type: 'default' },
+  { id: 'end-1', position: { x: 250, y: 200 }, data: { label: '结束' }, type: 'output' },
 ];
 
 const initialEdges: Edge[] = [
-  { id: 'e1-2', source: '1', target: '2' },
-  { id: 'e1-3', source: '1', target: '3' },
-  { id: 'e2-4', source: '2', target: '4' },
-  { id: 'e3-4', source: '3', target: '4' },
+  { id: 'e1', source: 'start-1', target: 'llm-1' },
+  { id: 'e2', source: 'llm-1', target: 'end-1' },
 ];
 
 export function AgentPage() {
@@ -140,10 +137,10 @@ export function AgentPage() {
 
   const handleEditCanvas = (agent: Agent) => {
     setCurrentAgent(agent);
-    setAgentName(agent.name);
-    if (agent.graph_def?.nodes && agent.graph_def?.edges) {
+    setAgentName(agent.name || agent.agent_id);
+    if (agent.graph_def?.nodes && agent.graph_def.nodes.length > 0) {
       setNodes(agent.graph_def.nodes);
-      setEdges(agent.graph_def.edges);
+      setEdges(agent.graph_def.edges || []);
     } else {
       setNodes(initialNodes);
       setEdges(initialEdges);
