@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card, Input, Button, List, Avatar, Spin } from 'antd';
+import { Card, Input, Button, List, Avatar } from 'antd';
 
 interface Message {
   id: string;
@@ -15,7 +15,7 @@ interface ChatSession {
 }
 
 export function ChatPage() {
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [_sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);

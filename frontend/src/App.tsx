@@ -1,21 +1,15 @@
 import { useState } from 'react';
 import { ConfigProvider, Layout, Menu, theme } from 'antd';
 import { AgentPage } from './pages/AgentPage';
-import { APIPage } from './pages/APIPage';
 import { MemoryPage } from './pages/MemoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ChatPage } from './pages/ChatPage';
+import { SkillsPage } from './pages/SkillsPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 const BotIcon = () => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
     <path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2M7.5 13a1.5 1.5 0 100 3 1.5 1.5 0 000-3m9 0a1.5 1.5 0 100 3 1.5 1.5 0 000-3"/>
-  </svg>
-);
-
-const ApiIcon = () => (
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-    <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>
   </svg>
 );
 
@@ -39,6 +33,12 @@ const ChatIcon = () => (
   </svg>
 );
 
+const SkillsIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+  </svg>
+);
+
 const { Header, Sider, Content } = Layout;
 
 function App() {
@@ -48,7 +48,7 @@ function App() {
   const menuItems = [
     { key: 'agents', icon: <BotIcon />, label: 'Agent 编排' },
     { key: 'chat', icon: <ChatIcon />, label: '对话' },
-    { key: 'api', icon: <ApiIcon />, label: 'API' },
+    { key: 'skills', icon: <SkillsIcon />, label: 'Skills' },
     { key: 'memory', icon: <DatabaseIcon />, label: '记忆' },
     { key: 'settings', icon: <SettingsIcon />, label: '设置' },
   ];
@@ -57,7 +57,7 @@ function App() {
     switch (currentPage) {
       case 'agents': return <AgentPage />;
       case 'chat': return <ChatPage />;
-      case 'api': return <APIPage />;
+      case 'skills': return <SkillsPage />;
       case 'memory': return <MemoryPage />;
       case 'settings': return <SettingsPage />;
       default: return <AgentPage />;
@@ -75,7 +75,7 @@ function App() {
         <Layout style={{ minHeight: '100vh' }}>
           <Header style={{ color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px' }}>
             <div style={{ fontSize: '18px', fontWeight: 'bold' }}>🦊 ClawTeamHarness</div>
-            <button 
+            <button
               onClick={() => setDarkMode(!darkMode)}
               style={{
                 background: 'none',
@@ -91,8 +91,8 @@ function App() {
           </Header>
           <Layout>
             <Sider width={200} style={{ background: darkMode ? '#141414' : '#fff' }}>
-              <Menu 
-                mode="inline" 
+              <Menu
+                mode="inline"
                 selectedKeys={[currentPage]}
                 onClick={({ key }) => setCurrentPage(key)}
                 items={menuItems}

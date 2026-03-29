@@ -1,8 +1,10 @@
-import React, { useCallback, useState } from 'react';
-import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, addEdge, Node, Edge } from '@xyflow/react';
+import { useCallback, useState, useEffect } from 'react';
+import { ReactFlow, MiniMap, Controls, Background, useNodesState, useEdgesState, addEdge, Node, Edge, Panel } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Card, Button, List, Tag, Modal, Form, Input, message, Space, Tooltip } from 'antd';
+import { Card, Button, List, Tag, Modal, Form, Input, message, Space, Typography, Popconfirm } from 'antd';
 import { PlusIcon, EditIcon, PlayIcon, DeleteIcon, SaveIcon, RocketIcon } from '../components/Icons';
+
+const { Title, Text } = Typography;
 
 const nodeTypes_list = ['input', 'default', 'output'] as const;
 type NodeType = typeof nodeTypes_list[number];
@@ -42,18 +44,20 @@ export function AgentPage() {
   const [agentName, setAgentName] = useState('My Agent');
 
   const onConnect = useCallback(
-    (params: any) => setEdges((eds) => addEdge(params, eds)),
+    (params: any) => setEdges((eds) => addEdge({ ...params, animated: true }, eds)),
     [setEdges],
   );
 
   const loadAgents = useCallback(() => {
     fetch('/api/agents/')
       .then(res => res.json())
-      .then(data => setAgents(data.agents || []))
+      .then(data => {
+        setAgents(data.agents || []);
+      })
       .catch(err => message.error('加载失败: ' + err));
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     loadAgents();
   }, [loadAgents]);
 
@@ -64,13 +68,32 @@ export function AgentPage() {
       body: JSON.stringify(values),
     })
       .then(res => res.json())
-      .then(() => {
+      .then((data) => {
         message.success('Agent 创建成功');
         setIsModalOpen(false);
         form.resetFields();
         loadAgents();
+        
+        // Auto-open editor after creation
+        const newAgent: Agent = {
+          agent_id: data.agent_id,
+          name: values.name,
+          description: values.description || '',
+          status: 'draft',
+          graph_def: {
+            nodes: initialNodes,
+            edges: initialEdges,
+          },
+        };
+        handleEditCanvas(newAgent);
       })
-      .catch(err => message.error('创建失败: ' + err));
+      .catch(err => {
+        if (err.message?.includes('already exists')) {
+          message.error('该名称的 Agent 已存在');
+        } else {
+          message.error('创建失败: ' + err);
+        }
+      });
   };
 
   const handlePublishAgent = (agent: Agent) => {
@@ -81,6 +104,14 @@ export function AgentPage() {
     }
     if (!agent.graph_def?.edges || agent.graph_def.edges.length === 0) {
       message.error('Agent 图没有连接边，请先连接节点后再发布');
+      return;
+    }
+    
+    // 检查是否有输入输出节点
+    const hasInput = agent.graph_def.nodes.some(n => n.type === 'input');
+    const hasOutput = agent.graph_def.nodes.some(n => n.type === 'output');
+    if (!hasInput || !hasOutput) {
+      message.error('Agent 图必须有输入（Start）和输出（End）节点');
       return;
     }
     
@@ -138,6 +169,8 @@ export function AgentPage() {
   const handleEditCanvas = (agent: Agent) => {
     setCurrentAgent(agent);
     setAgentName(agent.name || agent.agent_id);
+    
+    // Load graph from agent, or use default
     if (agent.graph_def?.nodes && agent.graph_def.nodes.length > 0) {
       setNodes(agent.graph_def.nodes);
       setEdges(agent.graph_def.edges || []);
@@ -150,31 +183,48 @@ export function AgentPage() {
 
   const saveGraph = () => {
     if (!currentAgent) return;
-    const graphData = { name: agentName, nodes, edges };
+    
+    const graphData = { nodes, edges };
     fetch(`/api/agents/${currentAgent.agent_id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: agentName, graph_def: graphData }),
+      body: JSON.stringify({ 
+        name: agentName, 
+        graph_def: graphData 
+      }),
     })
       .then(res => res.json())
       .then(() => {
         message.success('Agent 保存成功');
+        setIsCanvasOpen(false);
         loadAgents();
       })
       .catch(err => message.error('保存失败: ' + err));
   };
 
   const addNode = (type: NodeType) => {
-    const id = String(Date.now());
-    const labels: Record<NodeType, string> = { input: 'Start', default: 'Node', output: 'End' };
-    const newNode: Node = { id, position: { x: 250, y: 150 }, data: { label: labels[type] }, type };
+    const id = `node_${Date.now()}`;
+    const labels: Record<NodeType, string> = { 
+      input: '输入', 
+      default: '处理节点', 
+      output: '输出' 
+    };
+    
+    // Calculate position - find the rightmost node and place new one to its right
+    const maxX = Math.max(...nodes.map(n => n.position?.x || 0), 100);
+    const newNode: Node = { 
+      id, 
+      position: { x: maxX + 50, y: 150 }, 
+      data: { label: labels[type] }, 
+      type 
+    };
     setNodes((nds) => [...nds, newNode]);
   };
 
   return (
     <div>
       <Card
-        title="Agent 列表"
+        title={<Title level={4} style={{ margin: 0 }}>Agent 列表</Title>}
         extra={
           <Button type="primary" icon={<PlusIcon />} onClick={() => setIsModalOpen(true)}>
             创建 Agent
@@ -193,12 +243,30 @@ export function AgentPage() {
                 ) : (
                   <Tag color="blue" key="pub" icon={<RocketIcon />} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handlePublishAgent(agent)}>发布</Tag>
                 ),
-                <Tag color="green" key="run" icon={<PlayIcon />} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>运行</Tag>,
-                <Tag color="red" key="delete" icon={<DeleteIcon />} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => handleDeleteAgent(agent.agent_id)}>删除</Tag>,
+                <Tag color="green" key="run" icon={<PlayIcon />} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => window.location.href = '/chat'}>对话</Tag>,
+                <Popconfirm
+                  key="delete"
+                  title="确定要删除吗？"
+                  onConfirm={() => handleDeleteAgent(agent.agent_id)}
+                  okText="确定"
+                  cancelText="取消"
+                >
+                  <Tag color="red" icon={<DeleteIcon />} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>删除</Tag>
+                </Popconfirm>,
               ]}
             >
               <List.Item.Meta
-                title={<>{agent.name || agent.agent_id} <Tag color={agent.status === 'published' ? 'green' : 'default'} style={{ marginLeft: 8 }}>{agent.status === 'published' ? '已发布' : '草稿'}</Tag></>}
+                title={
+                  <Space>
+                    <span>{agent.name || agent.agent_id}</span>
+                    <Tag color={agent.status === 'published' ? 'green' : 'default'}>
+                      {agent.status === 'published' ? '已发布' : '草稿'}
+                    </Tag>
+                    {agent.graph_def?.nodes && agent.graph_def.nodes.length > 0 && (
+                      <Tag color="blue">{agent.graph_def.nodes.length} 节点</Tag>
+                    )}
+                  </Space>
+                }
                 description={agent.description || "无描述"}
               />
             </List.Item>
@@ -206,52 +274,82 @@ export function AgentPage() {
         />
       </Card>
 
+      {/* 创建 Agent Modal */}
       <Modal
         title="创建新 Agent"
         open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
+        onCancel={() => {
+          setIsModalOpen(false);
+          form.resetFields();
+        }}
         footer={null}
       >
         <Form form={form} layout="vertical" onFinish={handleCreateAgent}>
           <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入名称' }]}>
-            <Input placeholder="Agent 名称" />
+            <Input placeholder="Agent 名称，如：客服助手" />
           </Form.Item>
           <Form.Item name="description" label="描述">
             <Input.TextArea placeholder="Agent 描述（可选）" rows={3} />
           </Form.Item>
-          <Button type="primary" htmlType="submit" block>创建</Button>
+          <Button type="primary" htmlType="submit" block>创建并编辑</Button>
         </Form>
       </Modal>
 
+      {/* 编辑 Canvas Modal */}
       <Modal
-        title={`编辑 Agent: ${agentName}`}
+        title={
+          <Space>
+            <span>编辑 Agent:</span>
+            <Input 
+              value={agentName} 
+              onChange={e => setAgentName(e.target.value)}
+              style={{ width: 200 }}
+              placeholder="Agent 名称"
+            />
+          </Space>
+        }
         open={isCanvasOpen}
         onCancel={() => setIsCanvasOpen(false)}
         width={1200}
         footer={
           <Space>
+            <Text type="secondary">拖拽节点连接，编辑属性</Text>
+            <div style={{ flex: 1 }} />
             <Button onClick={() => setIsCanvasOpen(false)}>取消</Button>
             <Button type="primary" icon={<SaveIcon />} onClick={saveGraph}>保存</Button>
           </Space>
         }
       >
         <Space style={{ marginBottom: 12 }}>
-          <span>添加节点：</span>
-          <Button size="small" onClick={() => addNode('input')}>Start</Button>
-          <Button size="small" onClick={() => addNode('default')}>Node</Button>
-          <Button size="small" onClick={() => addNode('output')}>End</Button>
+          <Text strong>添加节点：</Text>
+          <Button size="small" onClick={() => addNode('input')}>+ 输入</Button>
+          <Button size="small" onClick={() => addNode('default')}>+ 处理</Button>
+          <Button size="small" onClick={() => addNode('output')}>+ 输出</Button>
+          <Text type="secondary" style={{ marginLeft: 16 }}>
+            提示：拖拽节点到画布，连接桩可创建边
+          </Text>
         </Space>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-        >
-          <Controls />
-          <MiniMap />
-          <Background />
-        </ReactFlow>
+        <div style={{ height: 500, border: '1px solid #f0f0f0', borderRadius: 8 }}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            fitView
+            attributionPosition="bottom-left"
+          >
+            <Controls />
+            <MiniMap />
+            <Background />
+            <Panel position="top-right">
+              <Space>
+                <Text type="secondary">节点: {nodes.length}</Text>
+                <Text type="secondary">边: {edges.length}</Text>
+              </Space>
+            </Panel>
+          </ReactFlow>
+        </div>
       </Modal>
     </div>
   );

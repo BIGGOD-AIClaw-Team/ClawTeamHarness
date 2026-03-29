@@ -1,0 +1,55 @@
+{
+  "agent_id": "cmo\u667a\u80fd\u641c\u7d22",
+  "name": "CMO\u667a\u80fd\u641c\u7d22",
+  "description": "",
+  "graph_def": {
+    "nodes": [
+      {
+        "id": "start-1",
+        "position": {
+          "x": 250,
+          "y": 0
+        },
+        "data": {
+          "label": "\u5f00\u59cb"
+        },
+        "type": "input"
+      },
+      {
+        "id": "llm-1",
+        "position": {
+          "x": 250,
+          "y": 100
+        },
+        "data": {
+          "label": "LLM \u5bf9\u8bdd"
+        },
+        "type": "default"
+      },
+      {
+        "id": "end-1",
+        "position": {
+          "x": 250,
+          "y": 200
+        },
+        "data": {
+          "label": "\u7ed3\u675f"
+        },
+        "type": "output"
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "start-1",
+        "target": "llm-1"
+      },
+      {
+        "id": "e2",
+        "source": "llm-1",
+        "target": "end-1"
+      }
+    ]
+  },
+  "status": "draft"
+}
