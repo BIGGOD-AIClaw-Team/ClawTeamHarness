@@ -1,9 +1,8 @@
 {
-  "agent_id": "\u6d4b\u8bd5\u4e13\u5bb6",
-  "name": "\u6d4b\u8bd5\u4e13\u5bb6",
+  "agent_id": "\u5ba2\u670d\u52a9\u624b",
+  "name": "\u5ba2\u670d\u52a9\u624b",
   "description": "",
   "graph_def": {
-    "name": "\u6d4b\u8bd5\u4e13\u5bb6",
     "nodes": [
       {
         "id": "start-1",
@@ -14,11 +13,7 @@
         "data": {
           "label": "\u5f00\u59cb"
         },
-        "type": "input",
-        "measured": {
-          "width": 150,
-          "height": 41
-        }
+        "type": "input"
       },
       {
         "id": "llm-1",
@@ -29,11 +24,7 @@
         "data": {
           "label": "LLM \u5bf9\u8bdd"
         },
-        "type": "default",
-        "measured": {
-          "width": 150,
-          "height": 41
-        }
+        "type": "default"
       },
       {
         "id": "end-1",
@@ -44,26 +35,7 @@
         "data": {
           "label": "\u7ed3\u675f"
         },
-        "type": "output",
-        "measured": {
-          "width": 150,
-          "height": 41
-        }
-      },
-      {
-        "id": "1774788967818",
-        "position": {
-          "x": 250,
-          "y": 150
-        },
-        "data": {
-          "label": "Start"
-        },
-        "type": "input",
-        "measured": {
-          "width": 150,
-          "height": 41
-        }
+        "type": "output"
       }
     ],
     "edges": [
@@ -79,6 +51,5 @@
       }
     ]
   },
-  "status": "draft",
-  "published_at": "2026-03-29T21:10:47.169528"
+  "status": "draft"
 }
