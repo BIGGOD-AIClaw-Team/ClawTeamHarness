@@ -6,9 +6,9 @@ Public exports:
 - VectorMemory: ChromaDB 向量记忆
 """
 
-from backend.src.memory.short_term import ShortTermMemory
-from backend.src.memory.long_term import LongTermMemory
-from backend.src.memory.vector import VectorMemory
+from .short_term import ShortTermMemory
+from .long_term import LongTermMemory
+from .vector import VectorMemory
 
 __all__ = [
     "ShortTermMemory",

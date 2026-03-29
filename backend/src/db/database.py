@@ -9,7 +9,10 @@ from datetime import datetime
 
 
 class Database:
-    def __init__(self, db_path: str = "./data/harness.db"):
+    def __init__(self, db_path: str = None):
+        if db_path is None:
+            # database.py at src/db/database.py -> parents[4] = ClawTeamHarness/
+            db_path = Path(__file__).resolve().parent.parent.parent.parent / "data" / "harness.db"
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()

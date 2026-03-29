@@ -12,7 +12,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
-AGENTS_DIR = Path("./data/agents")
+# 使用 backend 目录作为基准，确保跨目录启动时路径一致
+# agents.py at src/api/routes/agents.py -> parents[4] = ClawTeamHarness/
+# data/agents 位于 ClawTeamHarness/data/agents
+# agents.py at src/api/routes/agents.py -> parents[5] = ClawTeamHarness/
+# data/agents 位于 ClawTeamHarness/data/agents
+AGENTS_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent / "data" / "agents"
+AGENTS_DIR.mkdir(parents=True, exist_ok=True)
 AGENTS_DIR.mkdir(parents=True, exist_ok=True)
 
 DEFAULT_AGENT_GRAPH = {

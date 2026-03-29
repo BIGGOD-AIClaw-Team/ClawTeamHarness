@@ -4,11 +4,18 @@ Simple Agent - Direct LLM-based Agent without graph complexity.
 """
 import os
 import json
+import time
 import logging
 from typing import List, Dict, Optional, Any
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
+
+# Langfuse tracer
+try:
+    from ...trace.langfuse_tracer import tracer
+except ImportError:
+    tracer = None
 
 @dataclass
 class Agent:
@@ -31,10 +38,22 @@ class Agent:
         # 1. 构建消息
         messages = self._build_messages(user_message)
         
-        # 2. 调用 LLM
+        # 2. 调用 LLM (带追踪)
+        start_time = time.time()
         response = await self._call_llm(messages)
+        latency_ms = (time.time() - start_time) * 1000
         
-        # 3. 保存到记忆
+        # 3. Langfuse 追踪
+        if tracer and tracer.is_enabled:
+            tracer.trace_llm_call(
+                prompt=user_message,
+                model=self.llm_config.get("model", "unknown"),
+                response=response,
+                latency_ms=latency_ms,
+                provider=self.llm_config.get("provider", "openai"),
+            )
+        
+        # 4. 保存到记忆
         self._save_memory(user_message, response)
         
         return response

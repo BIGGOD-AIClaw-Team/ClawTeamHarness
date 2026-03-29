@@ -7,9 +7,9 @@ Public exports:
 - MCPToolAdapter: MCP Tool 到 Agent Tool 的适配器
 """
 
-from backend.src.mcp.client import MCPClientManager
-from backend.src.mcp.config import MCPServerConfig, MCPServerConfigStore
-from backend.src.mcp.adapter import MCPToolAdapter
+from .client import MCPClientManager
+from .config import MCPServerConfig, MCPServerConfigStore
+from .adapter import MCPToolAdapter
 
 __all__ = [
     "MCPClientManager",
