@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { ConfigProvider, Layout, Menu, theme } from 'antd';
-import { AgentPage } from './pages/AgentPage';
-import { AgentConfigPage } from './pages/AgentConfigPage';
 import { AgentConfigPageV3 } from './pages/AgentConfigPageV3';
 import { MemoryPage } from './pages/MemoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ChatPage } from './pages/ChatPage';
 import { SkillsPage } from './pages/SkillsPage';
+import { APIPage } from './pages/APIPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 const BotIcon = () => (
@@ -50,29 +49,27 @@ const ConfigIcon = () => (
 const { Header, Sider, Content } = Layout;
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('agents');
+  const [currentPage, setCurrentPage] = useState('agent-config-v3');
   const [darkMode, setDarkMode] = useState(false);
 
   const menuItems = [
-    { key: 'agents', icon: <BotIcon />, label: 'Agent 编排' },
-    { key: 'agent-config', icon: <ConfigIcon />, label: 'Agent 配置' },
-    { key: 'agent-config-v3', icon: <ConfigIcon />, label: 'Agent 配置 V3' },
+    { key: 'agent-config-v3', icon: <ConfigIcon />, label: 'Agent 配置' },
     { key: 'chat', icon: <ChatIcon />, label: '对话' },
     { key: 'skills', icon: <SkillsIcon />, label: 'Skills' },
     { key: 'memory', icon: <DatabaseIcon />, label: '记忆' },
+    { key: 'api', icon: <BotIcon />, label: 'API' },
     { key: 'settings', icon: <SettingsIcon />, label: '设置' },
   ];
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'agents': return <AgentPage />;
-      case 'agent-config': return <AgentConfigPage />;
       case 'agent-config-v3': return <AgentConfigPageV3 />;
       case 'chat': return <ChatPage />;
       case 'skills': return <SkillsPage />;
       case 'memory': return <MemoryPage />;
+      case 'api': return <APIPage />;
       case 'settings': return <SettingsPage />;
-      default: return <AgentPage />;
+      default: return <AgentConfigPageV3 />;
     }
   };
 

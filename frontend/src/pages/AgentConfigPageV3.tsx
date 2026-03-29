@@ -1,16 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Input, Select, Slider, Switch, Button, message, Tag } from 'antd';
 import { SciFiCard } from '../components/SciFiCard';
 
 const LLM_PROVIDERS = [
-  { value: 'openai', label: 'OpenAI', color: '#10a37f', models: ['gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'] },
-  { value: 'anthropic', label: 'Anthropic', color: '#d4a574', models: ['claude-3-5-sonnet-latest', 'claude-3-opus-latest', 'claude-3-sonnet-latest', 'claude-3-haiku-latest'] },
-  { value: 'glm', label: 'GLM (智谱AI)', color: '#7c3aed', models: ['glm-4-plus', 'glm-4', 'glm-4-air', 'glm-3-turbo'] },
-  { value: 'minimax', label: 'Minimax', color: '#f59e0b', models: ['abab6.5s-chat', 'abab6.5-chat', 'abab5.5-chat'] },
-  { value: 'qwen', label: 'Qwen (通义千问)', color: '#ff6b00', models: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long'] },
-  { value: 'doubao', label: 'Doubao (豆包)', color: '#ff4757', models: ['doubao-pro-32k', 'doubao-lite-32k', 'doubao-pro-128k'] },
-  { value: 'wenxin', label: 'Wenxin (文心一言)', color: '#2932e1', models: ['ernie-4.0-8k', 'ernie-3.5-8k', 'ernie-3.5-128k', 'ernie-speed-128k'] },
-  { value: 'hunyuan', label: 'Hunyuan (混元)', color: '#c0392b', models: ['hunyuan-pro', 'hunyuan-standard', 'hunyuan-lite'] },
+  { value: 'openai', label: 'OpenAI', color: '#10a37f' },
+  { value: 'anthropic', label: 'Anthropic', color: '#d4a574' },
+  { value: 'glm', label: 'GLM (智谱AI)', color: '#7c3aed' },
+  { value: 'minimax', label: 'Minimax', color: '#f59e0b' },
+  { value: 'qwen', label: 'Qwen (通义千问)', color: '#ff6b00' },
+  { value: 'doubao', label: 'Doubao (豆包)', color: '#ff4757' },
+  { value: 'wenxin', label: 'Wenxin (文心一言)', color: '#2932e1' },
+  { value: 'hunyuan', label: 'Hunyuan (混元)', color: '#c0392b' },
 ];
 
 const AGENT_MODES = [
@@ -47,6 +47,7 @@ interface TestResult {
 }
 
 export function AgentConfigPageV3() {
+  const [agentId, setAgentId] = useState<string | null>(null);
   const [config, setConfig] = useState({
     name: '',
     description: '',
@@ -57,10 +58,50 @@ export function AgentConfigPageV3() {
     decision: { auto_critique: true },
     tools: { enabled: true },
   });
+  const [models, setModels] = useState<string[]>([]);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   const currentProvider = LLM_PROVIDERS.find(p => p.value === config.llm.provider);
+
+  // 动态获取模型列表
+  const fetchModels = async (provider: string, apiKey: string) => {
+    if (!apiKey) {
+      setModels([]);
+      return;
+    }
+    setLoadingModels(true);
+    try {
+      const resp = await fetch('/api/models/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, api_key: apiKey }),
+      });
+      const data = await resp.json();
+      if (data.models) {
+        setModels(data.models);
+        // 如果当前模型不在列表中，自动选择第一个
+        if (data.models.length > 0 && !data.models.includes(config.llm.model)) {
+          setConfig(prev => ({ ...prev, llm: { ...prev.llm, model: data.models[0] } }));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch models:', e);
+      setModels([]);
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
+  // 当 API Key 或 Provider 变化时获取模型
+  useEffect(() => {
+    if (config.llm.api_key) {
+      fetchModels(config.llm.provider, config.llm.api_key);
+    } else {
+      setModels([]);
+    }
+  }, [config.llm.provider, config.llm.api_key]);
 
   const testConnection = async () => {
     if (!config.llm.api_key) {
@@ -92,29 +133,74 @@ export function AgentConfigPageV3() {
   };
 
   const handleSave = async () => {
+    if (!config.name) {
+      message.warning('请输入 Agent 名称');
+      return;
+    }
     try {
-      await fetch('/api/agents/', {
-        method: 'POST',
+      const url = agentId
+        ? `/api/agents/${agentId}`
+        : '/api/agents/';
+      const method = agentId ? 'PUT' : 'POST';
+
+      const resp = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: config.name,
           description: config.description,
-          graph_def: {
-            nodes: [],
-            edges: [],
-          },
+          graph_def: { nodes: [], edges: [] },
           llm_config: config.llm,
           mode_config: config.mode,
           prompt_config: config.prompt,
           memory_config: config.memory,
           decision_config: config.decision,
           tools_config: config.tools,
+          status: 'draft',
         }),
       });
-      message.success('配置已保存');
-    } catch (e) {
-      message.error('保存失败');
+
+      const result = await resp.json();
+      if (!resp.ok) {
+        throw new Error(result.detail || '保存失败');
+      }
+
+      if (!agentId && result.agent_id) {
+        setAgentId(result.agent_id);
+      }
+
+      message.success('保存成功！');
+    } catch (e: any) {
+      message.error(e.message || '保存失败');
     }
+  };
+
+  const handlePublish = async () => {
+    if (!agentId) {
+      message.warning('请先保存 Agent');
+      return;
+    }
+    try {
+      const resp = await fetch(`/api/agents/${agentId}/publish`, {
+        method: 'POST',
+      });
+      if (resp.ok) {
+        message.success('发布成功！Agent 已上线');
+      } else {
+        const data = await resp.json();
+        message.error(data.detail || '发布失败');
+      }
+    } catch (e) {
+      message.error('发布失败');
+    }
+  };
+
+  const handleProviderChange = (provider: string) => {
+    setConfig({
+      ...config,
+      llm: { ...config.llm, provider, model: '' },
+    });
+    setModels([]);
   };
 
   return (
@@ -164,7 +250,7 @@ export function AgentConfigPageV3() {
             {LLM_PROVIDERS.map(p => (
               <div
                 key={p.value}
-                onClick={() => setConfig({ ...config, llm: { ...config.llm, provider: p.value, model: p.models[0] } })}
+                onClick={() => handleProviderChange(p.value)}
                 style={{
                   padding: '4px 10px',
                   borderRadius: 6,
@@ -188,17 +274,24 @@ export function AgentConfigPageV3() {
             <Select
               style={selectStyle}
               value={config.llm.provider}
-              onChange={v => setConfig({ ...config, llm: { ...config.llm, provider: v, model: LLM_PROVIDERS.find(p => p.value === v)?.models[0] || '' } })}
+              onChange={handleProviderChange}
               options={LLM_PROVIDERS.map(p => ({ value: p.value, label: p.label }))}
             />
           </div>
           <div style={{ marginBottom: 12 }}>
-            <label style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>模型</label>
+            <label style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>
+              模型 {loadingModels && '(加载中...)'}
+            </label>
             <Select
               style={selectStyle}
-              value={config.llm.model}
+              value={config.llm.model || undefined}
               onChange={v => setConfig({ ...config, llm: { ...config.llm, model: v } })}
-              options={currentProvider?.models.map(m => ({ value: m, label: m })) || []}
+              placeholder={loadingModels ? '加载中...' : '请选择模型'}
+              loading={loadingModels}
+              options={models.length > 0
+                ? models.map(m => ({ value: m, label: m }))
+                : (currentProvider?.models?.map(m => ({ value: m, label: m })) || [])
+              }
             />
           </div>
           <div style={{ marginBottom: 12 }}>
@@ -351,6 +444,7 @@ export function AgentConfigPageV3() {
         </Button>
         <Button
           size="large"
+          onClick={handlePublish}
           style={{
             background: 'linear-gradient(135deg, #00d4ff 0%, #7c3aed 100%)',
             border: 'none',
