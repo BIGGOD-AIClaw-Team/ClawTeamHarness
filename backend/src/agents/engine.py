@@ -173,10 +173,18 @@ class AgentEngine:
         self._edges = list(edges_def)
         
         # Register nodes
+        # Normalize node types: UI format (input/default/output) -> engine format (start/llm/end)
+        TYPE_MAP = {
+            "input": "start",
+            "default": "llm",
+            "output": "end",
+        }
         for node_def in nodes_def:
             node_id = node_def["id"]
-            node_type = node_def.get("type", "llm")
-            config = node_def.get("config", {})
+            raw_type = node_def.get("type", "llm")
+            node_type = TYPE_MAP.get(raw_type, raw_type)  # Map UI types, keep others as-is
+            # Graph nodes may use "config" or "data" field for node configuration
+            config = node_def.get("config", node_def.get("data", {}))
             self._nodes[node_id] = {"type": node_type, "config": config}
             
             # Create node function and add to graph
@@ -204,14 +212,26 @@ class AgentEngine:
         start = self.graph_def.get("start")
         end = self.graph_def.get("end")
         
-        if start in self._nodes:
-            workflow.set_entry_point(start)
-        elif self._nodes:
-            # Fallback: use first node as entry point if start not specified or not found
-            first_node_id = list(self._nodes.keys())[0]
-            workflow.set_entry_point(first_node_id)
+        # If start not specified, find the start/input node
+        if not start or start not in self._nodes:
+            for nid, ndef in self._nodes.items():
+                if ndef["type"] in ("start", "input"):
+                    start = nid
+                    break
+            if not start and self._nodes:
+                start = list(self._nodes.keys())[0]
         
-        if end in self._nodes:
+        if start:
+            workflow.set_entry_point(start)
+        
+        # If end not specified, find the end/output node
+        if not end or end not in self._nodes:
+            for nid, ndef in self._nodes.items():
+                if ndef["type"] in ("end", "output"):
+                    end = nid
+                    break
+        
+        if end:
             workflow.add_edge(end, END)
         
         # Compile with memory checkpoint
