@@ -126,15 +126,40 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete }: Agen
       fetch(`/api/agents/${propAgentId}`)
         .then(res => res.json())
         .then(data => {
+          // Properly restore llm_config with all fields and defaults
+          const llmCfg = data.llm_config || {};
+          const modeCfg = data.mode_config || {};
+          const promptCfg = data.prompt_config || {};
+          const memoryCfg = data.memory_config || {};
+          const decisionCfg = data.decision_config || {};
+          const toolsCfg = data.tools_config || {};
+          
           setConfig({
             name: data.name || '',
             description: data.description || '',
-            llm: data.llm_config || { provider: 'openai', model: 'gpt-4o', api_key: '', temperature: 0.7 },
-            mode: data.mode_config || { type: 'react', max_iterations: 10 },
-            prompt: data.prompt_config || { system: '' },
-            memory: data.memory_config || { enabled: true, type: 'hybrid' },
-            decision: data.decision_config || { auto_critique: true },
-            tools: data.tools_config || { enabled: true },
+            llm: {
+              provider: llmCfg.provider || 'openai',
+              model: llmCfg.model || 'gpt-4o',
+              api_key: llmCfg.api_key || '',
+              temperature: llmCfg.temperature ?? 0.7,
+            },
+            mode: {
+              type: modeCfg.type || 'react',
+              max_iterations: modeCfg.max_iterations || 10,
+            },
+            prompt: {
+              system: promptCfg.system || '',
+            },
+            memory: {
+              enabled: memoryCfg.enabled !== false,
+              type: memoryCfg.type || 'hybrid',
+            },
+            decision: {
+              auto_critique: decisionCfg.auto_critique !== false,
+            },
+            tools: {
+              enabled: toolsCfg.enabled !== false,
+            },
             prompt_template: data.prompt_template || 'assistant',
             enable_suggestions: data.enable_suggestions || false,
             suggestions: data.suggestions || '',
@@ -193,7 +218,17 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete }: Agen
         body: JSON.stringify({
           name: config.name,
           description: config.description,
-          graph_def: { nodes: [], edges: [] },
+          graph_def: {
+            nodes: [
+              { id: 'start-1', type: 'input', position: { x: 250, y: 0 }, data: { label: '开始' } },
+              { id: 'llm-1', type: 'default', position: { x: 250, y: 100 }, data: { label: 'LLM 对话' } },
+              { id: 'end-1', type: 'output', position: { x: 250, y: 200 }, data: { label: '结束' } },
+            ],
+            edges: [
+              { id: 'e1', source: 'start-1', target: 'llm-1' },
+              { id: 'e2', source: 'llm-1', target: 'end-1' },
+            ]
+          },
           llm_config: config.llm,
           mode_config: config.mode,
           prompt_config: config.prompt,

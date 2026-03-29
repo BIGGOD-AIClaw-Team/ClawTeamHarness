@@ -198,17 +198,38 @@ class AgentEngine:
         
         # Register edges
         for edge in edges_def:
-            source = edge["source"]
-            target = edge["target"]
+            source = edge.get("source")
+            target = edge.get("target")
             condition = edge.get("condition")
+            
+            if not source or not target:
+                logger.warning(f"Edge missing source or target: {edge}")
+                continue
+            
+            if source not in self._nodes or target not in self._nodes:
+                logger.warning(f"Edge references unknown node: {source} -> {target}")
+                continue
             
             if condition:
                 # Conditional edge
-                workflow.add_conditional_edges(
-                    source,
-                    self._make_condition_fn(condition),
-                    {edge["branch_name"]: target for edge in edges_def if edge["source"] == source}
-                )
+                try:
+                    # Build branch mapping from edges with same source
+                    branches = {}
+                    for e in edges_def:
+                        if e.get("source") == source and e.get("branch_name"):
+                            branches[e["branch_name"]] = e["target"]
+                    if branches:
+                        workflow.add_conditional_edges(
+                            source,
+                            self._make_condition_fn(condition),
+                            branches
+                        )
+                    else:
+                        logger.warning(f"Conditional edge from {source} has no valid branch_name mappings")
+                        workflow.add_edge(source, target)
+                except Exception as e:
+                    logger.error(f"Failed to add conditional edge {source} -> {target}: {e}")
+                    workflow.add_edge(source, target)
             else:
                 # Only add edge if both endpoints exist
                 if source in self._nodes and target in self._nodes:
@@ -259,13 +280,24 @@ class AgentEngine:
             # Merge data into config for label access
             full_config = {**config, **node_data}
             
+            logger.info(f"Executing node {node_id} (type={node_type})")
+            
             try:
                 result = await self._execute_node(node_id, node_type, full_config, state)
-                return {
+                logger.info(f"Node {node_id} result: {result}")
+                
+                # Build update dict - include messages if returned by node
+                update = {
                     "current_node": node_id,
                     "context": {**state.get("context", {}), f"{node_id}_result": result},
                     "result": result,
                 }
+                
+                # If node returned messages (e.g., LLMNode), include them
+                if isinstance(result, dict) and "messages" in result:
+                    update["messages"] = result["messages"]
+                
+                return update
             except Exception as e:
                 logger.exception(f"Error executing node {node_id}")
                 return {
@@ -352,6 +384,9 @@ class AgentEngine:
         if self.graph is None:
             raise RuntimeError("Cannot execute empty graph (no nodes defined)")
 
+        logger.info(f"Starting graph execution with {len(self._nodes)} nodes: {list(self._nodes.keys())}")
+        logger.info(f"Initial state messages: {initial_state.get('messages', [])}")
+
         if cancellation_token is None:
             cancellation_token = CancellationToken()
 
@@ -362,7 +397,9 @@ class AgentEngine:
             async for state in self.graph.astream(initial_state, config):
                 cancellation_token.check()
                 final_state = state
-                logger.debug(f"Node: {state.get('current_node', 'unknown')}")
+                node_id = state.get('current_node', 'unknown')
+                messages_count = len(state.get('messages', []))
+                logger.info(f"Node executed: {node_id}, messages count: {messages_count}")
                 cancellation_token.check()
         except asyncio.CancelledError:
             logger.info("Graph execution cancelled")

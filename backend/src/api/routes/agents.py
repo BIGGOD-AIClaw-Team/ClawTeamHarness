@@ -90,7 +90,7 @@ async def update_agent(agent_id: str, request: AgentUpdateRequest):
     if request.description is not None:
         agent_data["description"] = request.description
     if request.graph_def is not None:
-        agent_data["graph_def"] = request.graph_def
+        agent_data["graph_def"] = request.graph_def if request.graph_def.get("nodes") else DEFAULT_AGENT_GRAPH
     if request.status is not None:
         agent_data["status"] = request.status
     
