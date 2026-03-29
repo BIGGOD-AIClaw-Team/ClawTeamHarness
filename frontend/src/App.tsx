@@ -5,6 +5,8 @@ import { MemoryPage } from './pages/MemoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ChatPage } from './pages/ChatPage';
 import { SkillsPage } from './pages/SkillsPage';
+import { SkillsHubPage } from './pages/SkillsHubPage';
+import { MCPHubPage } from './pages/MCPHubPage';
 import { APIPage } from './pages/APIPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -43,6 +45,18 @@ const SkillsIcon = () => (
 const ConfigIcon = () => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
     <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.485.485 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+  </svg>
+);
+
+const PluginIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+    <path d="M21 6h-2v4H7V6H5v4H3V6H1v12h2v-4h2v4h2v4h2v4h2v4h2v4h2v-4h2v-4h2v-4h2v-4h2V6h-2zm-8 10H7v-4h6v4z"/>
+  </svg>
+);
+
+const CloudIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+    <path d="M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h.71C7.37 7.69 9.48 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3s-1.34 3-3 3z"/>
   </svg>
 );
 
@@ -123,6 +137,8 @@ function App() {
     { key: 'agent-config-v3', icon: <ConfigIcon />, label: '🤖 Agent 配置' },
     { key: 'chat', icon: <ChatIcon />, label: '💬 对话' },
     { key: 'skills', icon: <SkillsIcon />, label: '🛠️ Skills' },
+    { key: 'skills-hub', icon: <PluginIcon />, label: '📡 Skills Hub' },
+    { key: 'mcp-hub', icon: <CloudIcon />, label: '☁️ MCP Hub' },
     { key: 'memory', icon: <DatabaseIcon />, label: '🧠 记忆' },
     { key: 'api', icon: <BotIcon />, label: '🔌 API' },
     { key: 'settings', icon: <SettingsIcon />, label: '⚙️ 设置' },
@@ -148,6 +164,8 @@ function App() {
       case 'agent-config-v3': return <AgentConfigPageV3 key={editingAgentId || 'new'} agentId={editingAgentId} onEditComplete={() => setEditingAgentId(null)} />;
       case 'chat': return <ChatPage onEditAgent={startEditAgent} />;
       case 'skills': return <SkillsPage />;
+      case 'skills-hub': return <SkillsHubPage />;
+      case 'mcp-hub': return <MCPHubPage />;
       case 'memory': return <MemoryPage />;
       case 'api': return <APIPage />;
       case 'settings': return <SettingsPage />;

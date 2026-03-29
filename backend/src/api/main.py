@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 import uvicorn
 
-from .routes import agents, skills, memory, tasks, mcp, ontology, llm, models, settings
+from .routes import agents, skills, memory, tasks, mcp, ontology, llm, models, settings, skills_hub, mcp_hub
 from .routes.websocket import router as websocket_router
 
 # 注意：API Key 必须通过环境变量，禁止硬编码！
@@ -36,6 +36,8 @@ class SkillEnableRequest(BaseModel):
 # 注册路由
 app.include_router(agents.router)
 app.include_router(skills.router)
+app.include_router(skills_hub.router)
+app.include_router(mcp_hub.router)
 app.include_router(memory.router)
 app.include_router(tasks.router)
 app.include_router(mcp.router)
