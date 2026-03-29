@@ -1,14 +1,39 @@
 """Agent Engine - LangGraph-based Agent orchestration."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import operator
+from dataclasses import dataclass, field
 from typing import Any, TypedDict, Annotated, Optional
 
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CancellationToken:
+    """
+    Token to signal cancellation of an ongoing execution.
+
+    Thread-safe for use across tasks/threads.
+    """
+    _cancelled: bool = field(default=False)
+
+    def cancel(self):
+        """Request cancellation of the execution."""
+        self._cancelled = True
+
+    def is_cancelled(self) -> bool:
+        """Return True if cancellation has been requested."""
+        return self._cancelled
+
+    def check(self):
+        """Raise CancelledError if cancellation was requested."""
+        if self._cancelled:
+            raise asyncio.CancelledError("Execution cancelled")
 
 
 class AgentState(TypedDict, total=False):
@@ -169,27 +194,43 @@ class AgentEngine:
                 return "default"
         return route
 
-    async def execute(self, initial_state: AgentState, thread_id: str = "default") -> AgentState:
+    async def execute(
+        self,
+        initial_state: AgentState,
+        thread_id: str = "default",
+        cancellation_token: Optional[CancellationToken] = None,
+    ) -> AgentState:
         """
         Execute the graph from the initial state.
-        
+
         Args:
-            initial_state: Starting state for the graph
-            thread_id: Checkpoint thread id for memory/suspend/resume
-            
+            initial_state: Starting state for the graph.
+            thread_id: Checkpoint thread id for memory/suspend/resume.
+            cancellation_token: Optional token to support mid-execution cancellation.
+
         Returns:
-            Final state after graph execution
+            Final state after graph execution, or {"status": "cancelled", "state": state}
+            if interrupted.
         """
         if self.graph is None:
             raise RuntimeError("Cannot execute empty graph (no nodes defined)")
-        
+
+        if cancellation_token is None:
+            cancellation_token = CancellationToken()
+
         config = {"configurable": {"thread_id": thread_id}}
-        
+
         final_state = None
-        async for state in self.graph.astream(initial_state, config):
-            final_state = state
-            logger.debug(f"Node: {state.get('current_node', 'unknown')}")
-        
+        try:
+            async for state in self.graph.astream(initial_state, config):
+                cancellation_token.check()
+                final_state = state
+                logger.debug(f"Node: {state.get('current_node', 'unknown')}")
+                cancellation_token.check()
+        except asyncio.CancelledError:
+            logger.info("Graph execution cancelled")
+            return {"status": "cancelled", "state": final_state or initial_state}
+
         return final_state or initial_state
 
     async def execute_node(self, node_id: str, state: AgentState) -> dict:

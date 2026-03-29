@@ -1,5 +1,5 @@
 """Agents module - LangGraph-based Agent orchestration."""
-from .engine import AgentEngine, AgentState
+from .engine import AgentEngine, AgentState, CancellationToken
 from .nodes import (
     BaseNode,
     LLMNode,
@@ -12,6 +12,13 @@ from .nodes import (
     CircuitBreaker,
     execute_with_retry,
 )
+from .nodes_advanced import (
+    LoopNode,
+    SubGraphNode,
+    MergeNode,
+    SplitNode,
+)
+from .checkpoint import CheckpointManager, checkpoint_manager
 from .serializer import GraphSerializer
 from .intent import IntentClassifier
 from .response import ResponseGenerator
@@ -19,6 +26,7 @@ from .response import ResponseGenerator
 __all__ = [
     "AgentEngine",
     "AgentState",
+    "CancellationToken",
     "BaseNode",
     "LLMNode",
     "ToolNode",
@@ -32,4 +40,12 @@ __all__ = [
     "execute_with_retry",
     "IntentClassifier",
     "ResponseGenerator",
+    # Advanced nodes
+    "LoopNode",
+    "SubGraphNode",
+    "MergeNode",
+    "SplitNode",
+    # Checkpoint
+    "CheckpointManager",
+    "checkpoint_manager",
 ]
