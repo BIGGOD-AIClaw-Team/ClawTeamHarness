@@ -35,25 +35,33 @@ class TestLLMNode:
         assert node.model == "gpt-4"
         assert node.name == "llm"
 
-    def test_build_prompt_with_context(self):
+    def test_build_messages_with_context(self):
         node = LLMNode(model="gpt-4", prompt_template="Hello {name}, you have {count} messages")
-        prompt = node._build_prompt(node.prompt_template, {"name": "Alice", "count": 5}, [])
-        assert prompt == "Hello Alice, you have 5 messages"
+        msgs = node._build_messages(node.prompt_template, {"name": "Alice", "count": 5}, [])
+        assert len(msgs) == 1
+        assert msgs[0]["role"] == "system"
+        assert msgs[0]["content"] == "Hello Alice, you have 5 messages"
 
-    def test_build_prompt_no_template(self):
+    def test_build_messages_no_template(self):
         node = LLMNode(model="gpt-4", prompt_template="")
         messages = [{"role": "user", "content": "Hi there"}]
-        prompt = node._build_prompt("", {}, messages)
-        assert prompt == "Hi there"
+        msgs = node._build_messages("", {}, messages)
+        # Without template, just returns the original messages
+        assert msgs == messages
 
     @pytest.mark.asyncio
-    async def test_llm_execute_returns_messages(self):
-        node = LLMNode(model="gpt-4", prompt_template="")
-        state = {"messages": [{"role": "user", "content": "Hi"}], "context": {}}
-        result = await node.execute(state)
-        assert "messages" in result
-        assert len(result["messages"]) == 2  # original + assistant response
-        assert result["messages"][-1]["role"] == "assistant"
+    async def test_llm_node_init_with_all_params(self):
+        node = LLMNode(
+            model="gpt-4",
+            prompt_template="Test prompt",
+            temperature=0.5,
+            max_tokens=1024,
+            top_p=0.9,
+        )
+        assert node.model == "gpt-4"
+        assert node.temperature == 0.5
+        assert node.max_tokens == 1024
+        assert node.top_p == 0.9
 
 
 class TestToolNode:

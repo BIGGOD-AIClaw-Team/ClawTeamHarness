@@ -64,21 +64,24 @@ class LLMNode(BaseNode):
     input_schema = {"messages": list}
     output_schema = {"response": str, "messages": list}
 
-    def __init__(self, model: str, prompt_template: str):
+    def __init__(self, model: str = "gpt-4", prompt_template: str = "",
+                 temperature: float = 0.7, max_tokens: int = 2048, top_p: float = 1.0):
         self.model = model
         self.prompt_template = prompt_template
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.top_p = top_p
 
     async def execute(self, state: dict) -> dict:
         """Execute LLM call."""
         messages = state.get("messages", [])
         context = state.get("context", {})
         
-        # Build the full prompt with context
-        prompt = self._build_prompt(self.prompt_template, context, messages)
+        # Build messages with prompt template if provided
+        llm_messages = self._build_messages(self.prompt_template, context, messages)
         
-        # TODO: Integrate with actual LLM provider (OpenAI/Anthropic/etc.)
-        # For now, return a placeholder response
-        response = await self._call_llm(prompt, messages)
+        # Call the LLM
+        response = await self._call_llm(llm_messages)
         
         new_messages = messages + [{"role": "assistant", "content": response}]
         
@@ -88,33 +91,44 @@ class LLMNode(BaseNode):
             "result": {"response": response, "model": self.model},
         }
 
-    def _build_prompt(self, template: str, context: dict, messages: list) -> str:
-        """Build full prompt from template and context."""
-        if not template:
-            # Default: concat all user messages
-            user_msgs = [m["content"] for m in messages if m.get("role") == "user"]
-            return "\n".join(user_msgs)
+    def _build_messages(self, template: str, context: dict, messages: list) -> list:
+        """Build messages list for LLM API from template and context."""
+        llm_messages = []
         
-        # Simple template variable substitution
-        result = template
-        for key, value in context.items():
-            result = result.replace(f"{{{key}}}", str(value))
+        # Add context as system message if template has variables
+        if template:
+            result = template
+            for key, value in context.items():
+                result = result.replace(f"{{{key}}}", str(value))
+            
+            # Include recent messages in template if {messages} placeholder exists
+            if "{messages}" in result:
+                msg_str = "\n".join(f"{m.get('role')}: {m.get('content')}" for m in messages)
+                result = result.replace("{messages}", msg_str)
+            
+            # Prepend template as system message
+            llm_messages.append({"role": "system", "content": result})
         
-        # Also include recent messages
-        if "{messages}" in result:
-            msg_str = "\n".join(f"{m.get('role')}: {m.get('content')}" for m in messages)
-            result = result.replace("{messages}", msg_str)
+        # Add existing messages
+        llm_messages.extend(messages)
         
-        return result
+        return llm_messages
 
-    async def _call_llm(self, prompt: str, messages: list) -> str:
+    async def _call_llm(self, messages: list) -> str:
         """Call the LLM. Override this method for custom LLM backends."""
-        # Placeholder - real implementation would call OpenAI/Anthropic/etc.
-        # This will be replaced by actual LLM integration in a future phase
-        logger.warning(f"LLM call not implemented - using placeholder. Model: {self.model}")
-        
-        # Simple echo for testing purposes
-        return f"[Placeholder response from {self.model}] {prompt[:100]}..."
+        import os
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(api_key=os.getenv("LLM_API_KEY"))
+
+        response = await client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            top_p=self.top_p,
+        )
+        return response.choices[0].message.content
 
 
 class ToolNode(BaseNode):

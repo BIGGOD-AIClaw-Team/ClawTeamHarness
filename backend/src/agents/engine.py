@@ -135,7 +135,13 @@ class AgentEngine:
         from .nodes import LLMNode, ToolNode, ConditionNode
         
         if node_type == "llm":
-            node = LLMNode(model=config.get("model", "gpt-4"), prompt_template=config.get("prompt", ""))
+            node = LLMNode(
+                model=config.get("model", "gpt-4"),
+                prompt_template=config.get("prompt", ""),
+                temperature=config.get("temperature", 0.7),
+                max_tokens=config.get("max_tokens", 2048),
+                top_p=config.get("top_p", 1.0),
+            )
             return await node.execute(state)
         elif node_type == "tool":
             node = ToolNode(tool_name=config.get("tool_name", ""), tool_params=config.get("tool_params", {}))

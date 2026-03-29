@@ -88,3 +88,28 @@ async def delete_agent(agent_id: str):
         raise HTTPException(status_code=404, detail="Agent not found")
     path.unlink()
     return {"status": "deleted"}
+
+
+class AgentExecuteRequest(BaseModel):
+    input_data: dict = {}
+
+
+@router.post("/{agent_id}/execute")
+async def execute_agent(agent_id: str, request: AgentExecuteRequest):
+    """触发 Agent 执行"""
+    # 集成 AgentEngine
+    from ...agents.engine import AgentEngine
+    from ...agents.serializer import GraphSerializer
+
+    # 加载 Agent 图
+    path = AGENTS_DIR / f"{agent_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    with open(path) as f:
+        data = json.load(f)
+
+    engine = GraphSerializer.deserialize(data)
+    result = await engine.execute(request.input_data)
+
+    return {"status": "completed", "result": result}
