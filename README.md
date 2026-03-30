@@ -1,87 +1,366 @@
-# 🦊 ClawTeamHarness
+# ClawTeamHarness
 
-> 一站式 AI Agent 开发与运行平台 | 高可扩展 | 高可用 | 开箱即用
+> AI Agent 开发平台 | 版本 V1.1
 
-## ✨ 核心功能
+![Sci-Fi Neon Theme](https://img.shields.io/badge/Theme-SciFi%20Neon-00f0ff?style=flat-square)
+![React](https://img.shields.io/badge/React-18-61dafb?style=flat-square)
+![Node.js](https://img.shields.io/badge/Node.js-22-339933?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
-- **🤖 Agent 可视化编排** - 基于 LangGraph 的状态机编排引擎
-- **🛠️ Skills 系统** - 动态加载、热更新的技能插件
-- **🔌 MCP 集成** - 原生支持 Model Context Protocol
-- **🧠 记忆系统** - 短期 + 长期 + 向量三重记忆
-- **🌐 REST API** - 完整的 CRUD 操作接口
-- **💻 Web UI** - 直观的可视化操作界面
+---
+
+## 📖 项目简介
+
+ClawTeamHarness 是一个现代化的 **AI Agent 开发平台**，旨在帮助开发者快速创建、配置、发布和管理 AI Agent。
+
+平台支持多种主流 LLM Provider，提供可视化的 Agent 配置界面、Skills Hub、MCP Hub 以及完整的对话系统。V1.1 版本完成了大量功能迭代和安全性修复，已具备生产可用性。
+
+### 核心能力
+
+- 🧩 **多 Provider 支持** — OpenAI / Anthropic / GLM / Minimax / Qwen / Doubao / Wenxin / Hunyuan / Ollama / vLLM
+- ⚙️ **可视化配置** — V3 配置页面，模型自动获取 + 手动输入双模式
+- 🛠️ **Skills Hub** — 本地 Skills 扫描，支持 55+ Skills
+- 🔌 **MCP Hub** — 支持 13 个 MCP Servers
+- 💬 **对话系统** — Agent 对话、收藏、筛选
+- 🔒 **安全加固** — API Key 加密存储、XSS 防护、Agent ID 全局唯一
+
+---
+
+## 🎨 功能特性
+
+### 1. Agent 配置系统
+
+- **V3 配置页面**（AgentConfigPageV3）提供直观的可视化配置体验
+- 支持 **10 个 LLM Provider**，自动识别并填写默认 Base URL
+- 模型选择支持：
+  - 🤖 **自动获取** — 从厂商 API 实时拉取可用模型列表
+  - ✏️ **手动输入** — 自定义模型名称，灵活适配私有部署
+- 配置项包括：模型选择、Temperature、Max Tokens、System Prompt 等
+
+```
+Provider 选择面板：
+┌─────────────────────────────────────────────────┐
+│  🔽 请选择 LLM Provider                          │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│  ○ OpenAI       ○ Anthropic     ○ GLM           │
+│  ○ Minimax      ○ Qwen          ○ Doubao        │
+│  ○ Wenxin       ○ Hunyuan       ○ Ollama        │
+│  ○ vLLM                                             │
+└─────────────────────────────────────────────────┘
+```
+
+### 2. Skills Hub & MCP Hub
+
+- 整合在 **Settings** 页面中，统一管理
+- **Skills Hub**：
+  - 自动扫描本地 Skills 目录
+  - 当前支持 **55+ Skills**
+  - 支持打开 Skills 目录，快速定位和编辑
+- **MCP Hub**：
+  - 支持 **13 个 MCP Servers** 的配置和管理
+  - 可视化 Server 启停状态
+
+```
+┌──────────────────────────────────────────────────────┐
+│  ⚙️ Settings                                         │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│                                                      │
+│  📦 Skills Hub          [55+ Skills]    [打开目录]   │
+│  ┌────────────────────────────────────────────────┐  │
+│  │  🟢 apple-reminders    🟢 clawhub             │  │
+│  │  🟢 feishu-doc         🟢 feishu-drive         │  │
+│  │  🟢 github             🟢 healthcheck          │  │
+│  │  ...                                            │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│  🔌 MCP Hub             [13 Servers]                │
+│  ┌────────────────────────────────────────────────┐  │
+│  │  🟢 Filesystem    🟢 GitHub    🟢 Database     │  │
+│  │  🟢 Web Fetch     🟢 Slack     🟢 Discord      │  │
+│  │  ...                                            │  │
+│  └────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────┘
+```
+
+### 3. 对话系统 (ChatPage)
+
+- 支持与**已发布 Agent** 进行对话
+- **Agent 列表**：
+  - 🔍 搜索功能 — 快速定位 Agent
+  - 筛选器：全部 / 我的 / 收藏
+  - 收藏功能 — localStorage 持久化，随时访问常用 Agent
+- **模型选择** — 下拉列表仅显示已配置的模型，避免无效调用
+- **发布后自动跳转** — Agent 发布成功立即进入对话界面
+
+```
+┌──────────────────────────────────────────────────────┐
+│  💬 对话                                              │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│                                                      │
+│  [🔍 搜索 Agent...]  [全部 ▼] [+ 收藏]              │
+│                                                      │
+│  ┌────────────────────────────────────────────────┐  │
+│  │ 🧠 Code Assistant    [我的]  ⭐               │  │
+│  │ 🧠 Data Analyst      [全部]  ⭐               │  │
+│  │ 🧠 Writer Agent      [全部]                   │  │
+│  │ 🧠 Translator         [我的]                  │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│  ┌────────────────────────────────────────────────┐  │
+│  │  Assistant  │  模型: GPT-4o  ▼                │  │
+│  │  ──────────────────────────────────────────── │  │
+│  │  Hello! How can I help you today?            │  │
+│  │                          14:32               │  │
+│  │  ──────────────────────────────────────────── │  │
+│  │  [Type your message...              ] [Send] │  │
+│  └────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────┘
+```
+
+### 4. UI/UX 特性
+
+- **科幻霓虹风格主题** — 赛博朋克配色，视觉冲击力强
+- **导航折叠** — 侧边栏支持折叠/展开，状态自动保存到 localStorage
+- **深色模式** — 适配长时间开发场景
+- **响应式布局** — 支持不同屏幕尺寸
+
+```
+┌──────────────────────────────────────────────────────┐
+│  ☰  │  🤖 Agent Config │ 💬 Chat │ ⚙️ Settings       │
+│  📁 │  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│  🤖 │                                             │
+│  💬 │   ┌────────────────────────────────────┐    │
+│  ⚙️ │   │     🔮 ClawTeamHarness V1.1        │    │
+│     │   │                                    │    │
+│  ▼  │   │   Sci-Fi Neon Theme               │    │
+│     │   │   Cyberpunk Color Scheme          │    │
+│     │   └────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────┘
+```
+
+---
 
 ## 🚀 快速开始
 
 ### 环境要求
 
-- Python 3.10+
-- Node.js 18+
-- Docker (可选)
+- Node.js ≥ 18
+- npm ≥ 9
+- Python ≥ 3.10（后端）
 
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/BIGGOD-AIClaw-Team/ClawTeamHarness.git
+git clone <repository-url>
 cd ClawTeamHarness
 ```
 
-### 2. 后端启动
+### 2. 启动后端
 
 ```bash
 cd backend
-pip install -e ".[dev]"
-export LLM_API_KEY="your-api-key"  # 必须设置！
-export MCP_API_KEY="your-mcp-key"  # 可选
-uvicorn src.api.main:app --reload --port 8000
+npm install
+npm run dev
+# 后端运行在 http://localhost:3001
 ```
 
-### 3. 前端启动
+### 3. 启动前端
 
 ```bash
 cd frontend
 npm install
 npm run dev
+# 前端运行在 http://localhost:5173
 ```
 
-访问 http://localhost:3000
-
-### 4. Docker 部署
+### 4. 使用 Docker（可选）
 
 ```bash
 docker-compose up -d
 ```
 
-## 📁 项目结构
+---
+
+## 🛠️ 技术栈
+
+### 前端
+
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| React | 18 | UI 框架 |
+| React Router | v6 | 路由管理 |
+| Zustand | - | 状态管理 |
+| DOMPurify | - | XSS 防护 |
+| Axios | - | HTTP 客户端 |
+| CSS | 原生 | 样式（科幻霓虹风格） |
+
+### 后端
+
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| Node.js | 22 | 运行时 |
+| Express | - | Web 框架 |
+| SQLite | - | 数据持久化 |
+| bcrypt | - | 密码加密 |
+| JWT | - | 身份认证 |
+| cors | - | 跨域支持 |
+
+### LLM Provider 集成
+
+- **OpenAI** — GPT-4o, GPT-4-turbo, GPT-3.5-turbo
+- **Anthropic** — Claude 3.5 Sonnet, Claude 3 Opus
+- **GLM** — GLM-4, GLM-3
+- **Minimax** — MiniMax-Text-01, MiniMax-M2
+- **Qwen** — Qwen2.5, Qwen2
+- **Doubao** — Doubao-pro, Doubao-lite
+- **Wenxin** — ERNIE-4.0, ERNIE-3.0
+- **Hunyuan** — Hunyuan-pro, Hunyuan-lite
+- **Ollama** — 本地模型支持
+- **vLLM** — 开源大模型部署方案
+
+---
+
+## 📂 项目结构
 
 ```
 ClawTeamHarness/
-├── backend/               # Python 后端
-│   └── src/
-│       ├── agents/        # Agent 编排引擎
-│       ├── skills/        # Skills 系统
-│       ├── memory/        # 记忆系统
-│       ├── mcp/           # MCP 集成
-│       └── api/           # REST API
-├── frontend/              # React 前端
-│   └── src/
-│       ├── pages/         # 页面组件
-│       └── components/    # 通用组件
-├── tests/                # 测试
-└── docs/                 # 文档
+├── backend/                    # 后端服务
+│   ├── src/
+│   │   ├── routes/             # API 路由
+│   │   │   ├── agents.js       # Agent CRUD
+│   │   │   ├── chat.js         # 对话接口
+│   │   │   ├── models.js       # 模型获取
+│   │   │   └── auth.js         # 认证接口
+│   │   ├── services/           # 业务逻辑
+│   │   │   ├── llm.js          # LLM Provider 调用
+│   │   │   └── crypto.js       # 加密工具
+│   │   ├── middleware/         # 中间件
+│   │   ├── db/                 # 数据库
+│   │   └── index.js            # 入口文件
+│   └── package.json
+│
+├── frontend/                   # 前端应用
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── AgentConfigPageV3.jsx   # Agent V3 配置页
+│   │   │   ├── ChatPage.jsx            # 对话页面
+│   │   │   ├── Settings.jsx            # 设置页面
+│   │   │   ├── AgentList.jsx           # Agent 列表
+│   │   │   └── Home.jsx                # 首页
+│   │   ├── components/
+│   │   │   ├── Navbar.jsx              # 导航栏
+│   │   │   ├── Sidebar.jsx             # 侧边栏
+│   │   │   ├── ModelSelector.jsx       # 模型选择器
+│   │   │   ├── ProviderSelector.jsx     # Provider 选择
+│   │   │   └── SkillsHub.jsx           # Skills Hub
+│   │   ├── stores/
+│   │   │   ├── agentStore.js           # Agent 状态
+│   │   │   ├── chatStore.js           # 聊天状态
+│   │   │   └── settingsStore.js       # 设置状态
+│   │   ├── styles/
+│   │   │   ├── theme.css              # 主题样式
+│   │   │   └── components.css         # 组件样式
+│   │   ├── utils/
+│   │   │   ├── api.js                 # API 封装
+│   │   │   └── security.js            # 安全工具
+│   │   ├── App.jsx
+│   │   └── main.jsx
+│   └── package.json
+│
+├── scripts/                    # 工具脚本
+├── tests/                      # 测试文件
+├── docs/                       # 文档
+├── data/                       # 数据目录
+├── docker-compose.yml
+├── README.md
+└── .env.example
 ```
 
-## 🔒 安全说明
+---
 
-- **API Keys 必须通过环境变量注入**，禁止硬编码！
-- 详见 [SECURITY_CHECKLIST.md](docs/SECURITY_CHECKLIST.md)
+## 📋 开发指南
 
-## 📈 Roadmap
+### 添加新的 LLM Provider
 
-- [x] V1.0 MVP - 核心功能
-- [ ] V2.0 - 插件市场、高级记忆
-- [ ] V3.0 - 多租户、企业特性
+1. 在 `backend/src/services/llm.js` 中添加 Provider 配置：
+
+```javascript
+const providers = {
+  // 现有 Provider...
+  newprovider: {
+    name: 'NewProvider',
+    baseUrl: 'https://api.newprovider.com/v1',
+    modelsEndpoint: '/models',
+    chatEndpoint: '/chat/completions',
+    defaultModel: 'new-model',
+    authType: 'bearer', // or 'api-key'
+  }
+};
+```
+
+2. 在前端 `ProviderSelector.jsx` 中添加对应的 UI 选项
+
+### 添加新的 Skill
+
+1. 在 `frontend/src/skills/` 目录下创建 Skill 文件夹
+2. 实现 Skill 的核心逻辑和 SKILL.md
+3. Skills Hub 会自动扫描并显示
+
+### 添加新的 MCP Server
+
+1. 在 `backend/src/services/mcp/` 目录下添加 Server 配置
+2. 在 Settings 页面的 MCP Hub 中注册
+
+### API 接口文档
+
+#### Agent 管理
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| GET | `/api/agents` | 获取 Agent 列表 |
+| POST | `/api/agents` | 创建新 Agent |
+| GET | `/api/agents/:id` | 获取 Agent 详情 |
+| PUT | `/api/agents/:id` | 更新 Agent |
+| DELETE | `/api/agents/:id` | 删除 Agent |
+| POST | `/api/agents/:id/publish` | 发布 Agent |
+
+#### 对话
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| POST | `/api/chat` | 发送对话消息 |
+| GET | `/api/chat/history/:agentId` | 获取对话历史 |
+
+#### 模型
+
+| 方法 | 路径 | 描述 |
+|------|------|------|
+| GET | `/api/models/:provider` | 获取 Provider 可用模型 |
+
+---
+
+## 🔒 安全特性
+
+| 安全措施 | 实现方式 |
+|----------|----------|
+| API Key 加密 | 使用 crypto-js AES 加密存储 |
+| XSS 防护 | DOMPurify 过滤所有用户输入 |
+| Agent ID 全局唯一 | UUID v4 + 时间戳混合生成 |
+| CORS 控制 | 后端配置白名单域名 |
+| 输入校验 | Joi/Yup schema 验证 |
+
+---
 
 ## 📄 License
 
-MIT
+MIT License © 2024 ClawTeam
+
+---
+
+<div align="center">
+
+**🤖 ClawTeamHarness — 让 AI Agent 开发更简单**
+
+Version 1.1 | Made with ⚡ by ClawTeam
+
+</div>
