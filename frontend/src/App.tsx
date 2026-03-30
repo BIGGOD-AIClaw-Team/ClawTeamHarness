@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ConfigProvider, Layout, Menu, theme } from 'antd';
 import { AgentConfigPageV3 } from './pages/AgentConfigPageV3';
 import { MemoryPage } from './pages/MemoryPage';
@@ -9,6 +9,12 @@ import { SkillsHubPage } from './pages/SkillsHubPage';
 import { MCPHubPage } from './pages/MCPHubPage';
 import { APIPage } from './pages/APIPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
+
+const { Header, Sider, Content } = Layout;
+
+// ============================================================
+// Icon Components
+// ============================================================
 
 const BotIcon = () => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
@@ -50,7 +56,7 @@ const ConfigIcon = () => (
 
 const PluginIcon = () => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-    <path d="M21 6h-2v4H7V6H5v4H3V6H1v12h2v-4h2v4h2v4h2v4h2v4h2v4h2v-4h2v-4h2v-4h2v-4h2V6h-2zm-8 10H7v-4h6v4z"/>
+    <path d="M21 6h-2v4H7V6H5v4H3V6H1v12h2v-4h2v4h2v4h2v4h2v4h2v-4h2v-4h2v-4h2v-4h2V6h-2zm-8 10H7v-4h6v4z"/>
   </svg>
 );
 
@@ -60,9 +66,26 @@ const CloudIcon = () => (
   </svg>
 );
 
-const { Header, Sider, Content } = Layout;
+// Collapse/Expand Icon
+const CollapseIcon = ({ collapsed }: { collapsed: boolean }) => (
+  <svg 
+    viewBox="0 0 24 24" 
+    width="16" 
+    height="16" 
+    fill="currentColor"
+    style={{ 
+      transition: 'transform 0.2s ease-in-out',
+      transform: collapsed ? 'rotate(180deg)' : 'rotate(0deg)',
+    }}
+  >
+    <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+  </svg>
+);
 
-// 科幻风格主题
+// ============================================================
+// Theme Configuration
+// ============================================================
+
 const sciFiTheme = {
   algorithm: theme.darkAlgorithm,
   token: {
@@ -116,23 +139,31 @@ const sciFiTheme = {
   },
 };
 
-const navItemStyle = (active: boolean) => ({
-  color: active ? '#00d4ff' : '#888',
-  borderLeft: active ? '3px solid #00d4ff' : '3px solid transparent',
-  background: active ? 'rgba(0, 212, 255, 0.1)' : 'transparent',
-  margin: '4px 0',
-  borderRadius: '0 6px 6px 0',
-});
+// ============================================================
+// Main App Component
+// ============================================================
 
 function App() {
   const [currentPage, setCurrentPage] = useState('agent-config-v3');
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  const [chatInitialAgentId, setChatInitialAgentId] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(() => {
+    // 从 localStorage 恢复用户偏好
+    const saved = localStorage.getItem('sidebar_collapsed');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  // 保存折叠状态到 localStorage
+  useEffect(() => {
+    localStorage.setItem('sidebar_collapsed', JSON.stringify(collapsed));
+  }, [collapsed]);
 
   const startEditAgent = (agentId: string) => {
     setEditingAgentId(agentId);
     setCurrentPage('agent-config-v3');
   };
 
+  // 菜单项配置
   const menuItems = [
     { key: 'agent-config-v3', icon: <ConfigIcon />, label: '🤖 Agent 配置' },
     { key: 'chat', icon: <ChatIcon />, label: '💬 对话' },
@@ -154,15 +185,23 @@ function App() {
     justifyContent: 'space-between' as const,
   };
 
+  const siderStyle = {
+    background: 'rgba(0, 20, 40, 0.8)',
+    borderRight: '1px solid rgba(0, 212, 255, 0.2)',
+    transition: 'all 0.2s ease-in-out',
+    overflow: 'hidden' as const,
+  };
+
   const menuStyle = {
     background: 'transparent',
-    borderRight: '1px solid rgba(0, 212, 255, 0.2)',
+    borderRight: 0,
+    padding: '16px 8px',
   };
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'agent-config-v3': return <AgentConfigPageV3 key={editingAgentId || 'new'} agentId={editingAgentId} onEditComplete={() => setEditingAgentId(null)} />;
-      case 'chat': return <ChatPage onEditAgent={startEditAgent} />;
+      case 'agent-config-v3': return <AgentConfigPageV3 key={editingAgentId || 'new'} agentId={editingAgentId} onEditComplete={() => setEditingAgentId(null)} onPublishSuccess={(agentId) => { setChatInitialAgentId(agentId); setCurrentPage('chat'); }} />;
+      case 'chat': return <ChatPage onEditAgent={startEditAgent} initialAgentId={chatInitialAgentId} />;
       case 'skills': return <SkillsPage />;
       case 'skills-hub': return <SkillsHubPage />;
       case 'mcp-hub': return <MCPHubPage />;
@@ -208,18 +247,38 @@ function App() {
             </div>
           </Header>
           <Layout>
-            <Sider width={220} style={{ ...menuStyle, background: 'rgba(0, 20, 40, 0.8)' }}>
+            <Sider 
+              width={collapsed ? 64 : 220} 
+              collapsedWidth={64}
+              collapsed={collapsed}
+              style={siderStyle}
+              trigger={
+                <div 
+                  style={{
+                    padding: '12px 0',
+                    display: 'flex',
+                    justifyContent: collapsed ? 'center' : 'flex-end',
+                    paddingRight: collapsed ? 0 : 16,
+                    cursor: 'pointer',
+                    color: '#888',
+                    transition: 'color 0.2s',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#00d4ff'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#888'}
+                  onClick={() => setCollapsed(!collapsed)}
+                >
+                  <CollapseIcon collapsed={collapsed} />
+                </div>
+              }
+            >
               <Menu
                 mode="inline"
                 selectedKeys={[currentPage]}
                 onClick={({ key }) => setCurrentPage(key)}
                 items={menuItems}
-                style={{ 
-                  background: 'transparent', 
-                  borderRight: 0,
-                  padding: '16px 8px',
-                }}
+                style={menuStyle}
                 theme="dark"
+                inlineCollapsed={collapsed}
               />
             </Sider>
             <Content style={{ padding: '24px', height: 'calc(100vh - 64px)', overflow: 'auto', background: '#0a0e17' }}>
@@ -247,6 +306,20 @@ function App() {
         *::-webkit-scrollbar-thumb {
           background: rgba(0, 212, 255, 0.3);
           border-radius: 3px;
+        }
+        /* 折叠按钮样式 */
+        .ant-layout-sider-trigger {
+          background: rgba(0, 20, 40, 0.9) !important;
+          border-top: 1px solid rgba(0, 212, 255, 0.2) !important;
+        }
+        /* Menu inline collapsed styles */
+        .ant-menu-inline-collapsed {
+          width: 64px !important;
+        }
+        .ant-menu-inline-collapsed .ant-menu-item,
+        .ant-menu-inline-collapsed .ant-menu-submenu-title {
+          padding: 0 !important;
+          justify-content: center;
         }
       `}</style>
     </ErrorBoundary>
