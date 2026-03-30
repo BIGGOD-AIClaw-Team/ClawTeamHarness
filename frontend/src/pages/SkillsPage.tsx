@@ -1,5 +1,5 @@
-import React, { useCallback, useState, useEffect } from 'react';
-import { Card, Tabs, Table, Tag, Button, Modal, Form, Input, message, Space, Popconfirm, Switch, Divider, Typography } from 'antd';
+import { useCallback, useState, useEffect } from 'react';
+import { Card, Tabs, Table, Tag, Button, Modal, Form, Input, message, Space, Popconfirm, Divider, Typography } from 'antd';
 import { PlusIcon, DeleteIcon, RocketIcon, SaveIcon } from '../components/Icons';
 
 const { Text } = Typography;
@@ -28,7 +28,7 @@ export function SkillsPage() {
   // Skills.md 内容
   const [skillsMdContent, setSkillsMdContent] = useState('');
   const [skillsMdPath, setSkillsMdPath] = useState('');
-  const [loadingSkillsMd, setLoadingSkillsMd] = useState(false);
+  const [_loadingSkillsMd, setLoadingSkillsMd] = useState(false);
   const [savingSkillsMd, setSavingSkillsMd] = useState(false);
   const [isSkillsMdModalOpen, setIsSkillsMdModalOpen] = useState(false);
 

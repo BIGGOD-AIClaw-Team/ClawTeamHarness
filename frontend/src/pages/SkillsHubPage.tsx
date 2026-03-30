@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Card, List, Button, Tag, message, Input, Select, Space, Typography, Row, Col, Empty, Spin, Tooltip } from 'antd';
-import { DownloadOutlined, DeleteOutlined, ReloadOutlined, SearchOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Card, List, Button, Tag, message, Input, Select, Space, Typography, Row, Col, Empty, Spin, Tooltip, Switch, Drawer, Form, Input as InputAntd } from 'antd';
+import { DownloadOutlined, DeleteOutlined, ReloadOutlined, SearchOutlined, CheckCircleOutlined, SettingOutlined, SaveOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -12,6 +12,8 @@ interface Skill {
   version: string;
   tags: string[];
   installed: boolean;
+  enabled?: boolean;
+  config?: Record<string, string | number | boolean>;
 }
 
 export function SkillsHubPage() {
@@ -21,6 +23,13 @@ export function SkillsHubPage() {
   const [searchText, setSearchText] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [allTags, setAllTags] = useState<string[]>([]);
+
+  // 配置面板状态
+  const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
+  const [configSkillName, setConfigSkillName] = useState<string | null>(null);
+  const [skillConfig, setSkillConfig] = useState<Record<string, string | number | boolean>>({});
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [configLoading, setConfigLoading] = useState(false);
 
   const fetchSkills = async () => {
     setLoading(true);
@@ -82,6 +91,69 @@ export function SkillsHubPage() {
       message.error('卸载失败');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 启用/禁用 Skill
+  const handleToggleEnabled = async (skillName: string, enabled: boolean) => {
+    try {
+      const res = await fetch(`/api/skills-hub/${enabled ? 'enable' : 'disable'}/${skillName}`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        message.success(data.message || `${enabled ? '启用' : '禁用'}成功`);
+        fetchSkills();
+      } else {
+        message.error(data.detail || '操作失败');
+      }
+    } catch (e) {
+      message.error('操作失败');
+    }
+  };
+
+  // 打开配置面板
+  const handleOpenConfig = async (skillName: string) => {
+    setConfigSkillName(skillName);
+    setConfigDrawerOpen(true);
+    setConfigLoading(true);
+    try {
+      const res = await fetch(`/api/skills-hub/config/${skillName}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSkillConfig(data.config || {});
+      } else {
+        // 如果没有配置接口，尝试空配置
+        setSkillConfig({});
+      }
+    } catch (e) {
+      setSkillConfig({});
+    } finally {
+      setConfigLoading(false);
+    }
+  };
+
+  // 保存配置
+  const handleSaveConfig = async () => {
+    if (!configSkillName) return;
+    setSavingConfig(true);
+    try {
+      const res = await fetch(`/api/skills-hub/config/${configSkillName}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: skillConfig }),
+      });
+      if (res.ok) {
+        message.success('配置已保存');
+        setConfigDrawerOpen(false);
+      } else {
+        const data = await res.json();
+        message.error(data.detail || '保存失败');
+      }
+    } catch (e) {
+      message.error('保存失败');
+    } finally {
+      setSavingConfig(false);
     }
   };
 
@@ -222,10 +294,25 @@ export function SkillsHubPage() {
                   <List.Item
                     key={skill.name}
                     actions={[
+                      <Tooltip title={skill.enabled !== false ? '禁用' : '启用'}>
+                        <Switch
+                          size="small"
+                          checked={skill.enabled !== false}
+                          onChange={(checked) => handleToggleEnabled(skill.name, checked)}
+                        />
+                      </Tooltip>,
+                      <Tooltip title="配置">
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<SettingOutlined />}
+                          onClick={() => handleOpenConfig(skill.name)}
+                        />
+                      </Tooltip>,
                       <Tooltip title="卸载">
-                        <Button 
-                          type="text" 
-                          danger 
+                        <Button
+                          type="text"
+                          danger
                           size="small"
                           icon={<DeleteOutlined />}
                           onClick={() => handleUninstall(skill.name)}
@@ -235,10 +322,10 @@ export function SkillsHubPage() {
                     ]}
                   >
                     <List.Item.Meta
-                      title={<span style={{ color: '#00ff88' }}>{skill.name}</span>}
+                      title={<span style={{ color: skill.enabled !== false ? '#00ff88' : '#666' }}>{skill.name}</span>}
                       description={
                         <div>
-                          <div style={{ color: '#888', fontSize: 12 }}>{skill.description}</div>
+                          <div style={{ color: skill.enabled !== false ? '#888' : '#555', fontSize: 12 }}>{skill.description}</div>
                           <Text type="secondary" style={{ fontSize: 10 }}>
                             by {skill.author}
                           </Text>
@@ -252,6 +339,60 @@ export function SkillsHubPage() {
           </Card>
         </Col>
       </Row>
+
+      {/* Skill 配置面板 Drawer */}
+      <Drawer
+        title={<Space><SettingOutlined /> <span>{configSkillName} 配置</span></Space>}
+        placement="right"
+        width={400}
+        open={configDrawerOpen}
+        onClose={() => setConfigDrawerOpen(false)}
+        styles={{ body: { background: 'rgba(0, 20, 40, 0.9)', padding: 16 } }}
+        extra={
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            loading={savingConfig}
+            onClick={handleSaveConfig}
+          >
+            保存
+          </Button>
+        }
+      >
+        {configLoading ? (
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <Spin />
+          </div>
+        ) : (
+          <div>
+            <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+              配置 Skill 的运行参数。修改后点击「保存」生效。
+            </Text>
+            {Object.keys(skillConfig).length === 0 ? (
+              <Empty description="该 Skill 暂无配置参数" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            ) : (
+              <Form layout="vertical">
+                {Object.entries(skillConfig).map(([key, value]) => (
+                  <Form.Item key={key} label={key} style={{ marginBottom: 12 }}>
+                    <InputAntd
+                      value={String(value)}
+                      onChange={(e) => setSkillConfig(prev => ({
+                        ...prev,
+                        [key]: e.target.value,
+                      }))}
+                      style={{
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        border: '1px solid rgba(0, 212, 255, 0.3)',
+                        color: '#e0e6ed',
+                      }}
+                    />
+                  </Form.Item>
+                ))}
+              </Form>
+            )}
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 }

@@ -4,9 +4,6 @@ import { AgentConfigPageV3 } from './pages/AgentConfigPageV3';
 import { MemoryPage } from './pages/MemoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ChatPage } from './pages/ChatPage';
-import { SkillsPage } from './pages/SkillsPage';
-import { SkillsHubPage } from './pages/SkillsHubPage';
-import { MCPHubPage } from './pages/MCPHubPage';
 import { APIPage } from './pages/APIPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -42,27 +39,9 @@ const ChatIcon = () => (
   </svg>
 );
 
-const SkillsIcon = () => (
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-  </svg>
-);
-
 const ConfigIcon = () => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
     <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.485.485 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-  </svg>
-);
-
-const PluginIcon = () => (
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-    <path d="M21 6h-2v4H7V6H5v4H3V6H1v12h2v-4h2v4h2v4h2v4h2v4h2v-4h2v-4h2v-4h2v-4h2V6h-2zm-8 10H7v-4h6v4z"/>
-  </svg>
-);
-
-const CloudIcon = () => (
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-    <path d="M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h.71C7.37 7.69 9.48 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3s-1.34 3-3 3z"/>
   </svg>
 );
 
@@ -90,8 +69,13 @@ const sciFiTheme = {
   algorithm: theme.darkAlgorithm,
   token: {
     colorPrimary: '#00d4ff',
+    colorSuccess: '#00ff88',
+    colorWarning: '#ffaa00',
+    colorError: '#ff4757',
+    colorInfo: '#7c3aed',
     colorBgBase: '#0a0e17',
     colorText: '#e0e6ed',
+    colorTextSecondary: '#8b9dc3',
     colorBorder: 'rgba(0, 212, 255, 0.3)',
     colorBorderSecondary: 'rgba(0, 212, 255, 0.1)',
     colorBgContainer: 'rgba(0, 20, 40, 0.8)',
@@ -102,16 +86,17 @@ const sciFiTheme = {
   },
   components: {
     Layout: {
-      headerBg: 'linear-gradient(90deg, rgba(0, 212, 255, 0.1) 0%, rgba(124, 58, 237, 0.1) 100%)',
+      headerBg: 'linear-gradient(90deg, rgba(0, 212, 255, 0.12) 0%, rgba(124, 58, 237, 0.12) 50%, rgba(0, 255, 136, 0.08) 100%)',
       bodyBg: '#0a0e17',
       siderBg: 'rgba(0, 20, 40, 0.8)',
     },
     Menu: {
       darkItemBg: 'transparent',
-      darkItemSelectedBg: 'rgba(0, 212, 255, 0.1)',
-      darkItemHoverBg: 'rgba(0, 212, 255, 0.05)',
-      darkItemColor: '#888',
+      darkItemSelectedBg: 'linear-gradient(90deg, rgba(0, 212, 255, 0.15) 0%, rgba(124, 58, 237, 0.1) 100%)',
+      darkItemHoverBg: 'rgba(0, 212, 255, 0.08)',
+      darkItemColor: '#8b9dc3',
       darkItemSelectedColor: '#00d4ff',
+      darkItemInlineIndent: 24,
     },
     Card: {
       colorBgContainer: 'rgba(0, 20, 40, 0.8)',
@@ -122,19 +107,41 @@ const sciFiTheme = {
       colorBorder: 'rgba(0, 212, 255, 0.3)',
       activeBorderColor: '#00d4ff',
       hoverBorderColor: 'rgba(0, 212, 255, 0.5)',
+      colorText: '#e0e6ed',
+      colorPlaceholderText: '#5a6a8a',
     },
     Select: {
       colorBgContainer: 'rgba(0, 10, 20, 0.8)',
       colorBorder: 'rgba(0, 212, 255, 0.3)',
       optionSelectedBg: 'rgba(0, 212, 255, 0.2)',
+      colorText: '#e0e6ed',
+      colorPlaceholderText: '#5a6a8a',
     },
     Button: {
-      primaryShadow: '0 0 10px rgba(0, 212, 255, 0.3)',
+      primaryShadow: '0 0 15px rgba(0, 212, 255, 0.4)',
+      defaultShadow: '0 0 10px rgba(0, 212, 255, 0.2)',
     },
     Table: {
       colorBgContainer: 'rgba(0, 20, 40, 0.8)',
       headerBg: 'rgba(0, 40, 60, 0.8)',
-      rowHoverBg: 'rgba(0, 212, 255, 0.05)',
+      rowHoverBg: 'rgba(0, 212, 255, 0.08)',
+      headerColor: '#00d4ff',
+    },
+    Slider: {
+      trackBg: '#00d4ff',
+      trackHoverBg: '#00e5ff',
+      handleColor: '#00d4ff',
+      handleShadow: '0 0 10px rgba(0, 212, 255, 0.6)',
+      railBg: 'rgba(0, 212, 255, 0.2)',
+      railHoverBg: 'rgba(0, 212, 255, 0.3)',
+    },
+    Switch: {
+      colorPrimary: '#00d4ff',
+      colorPrimaryHover: '#00e5ff',
+    },
+    Tag: {
+      defaultBg: 'rgba(0, 212, 255, 0.1)',
+      defaultColor: '#00d4ff',
     },
   },
 };
@@ -167,9 +174,6 @@ function App() {
   const menuItems = [
     { key: 'agent-config-v3', icon: <ConfigIcon />, label: '🤖 Agent 配置' },
     { key: 'chat', icon: <ChatIcon />, label: '💬 对话' },
-    { key: 'skills', icon: <SkillsIcon />, label: '🛠️ Skills' },
-    { key: 'skills-hub', icon: <PluginIcon />, label: '📡 Skills Hub' },
-    { key: 'mcp-hub', icon: <CloudIcon />, label: '☁️ MCP Hub' },
     { key: 'memory', icon: <DatabaseIcon />, label: '🧠 记忆' },
     { key: 'api', icon: <BotIcon />, label: '🔌 API' },
     { key: 'settings', icon: <SettingsIcon />, label: '⚙️ 设置' },
@@ -201,10 +205,7 @@ function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'agent-config-v3': return <AgentConfigPageV3 key={editingAgentId || 'new'} agentId={editingAgentId} onEditComplete={() => setEditingAgentId(null)} onPublishSuccess={(agentId) => { setChatInitialAgentId(agentId); setCurrentPage('chat'); }} />;
-      case 'chat': return <ChatPage onEditAgent={startEditAgent} initialAgentId={chatInitialAgentId} />;
-      case 'skills': return <SkillsPage />;
-      case 'skills-hub': return <SkillsHubPage />;
-      case 'mcp-hub': return <MCPHubPage />;
+      case 'chat': return <ChatPage key={chatInitialAgentId || 'default'} onEditAgent={startEditAgent} initialAgentId={chatInitialAgentId} />;
       case 'memory': return <MemoryPage />;
       case 'api': return <APIPage />;
       case 'settings': return <SettingsPage />;
@@ -289,8 +290,16 @@ function App() {
       </ConfigProvider>
       <style>{`
         @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
+          0%, 100% { opacity: 1; box-shadow: 0 0 10px #00ff88; }
+          50% { opacity: 0.7; box-shadow: 0 0 20px #00ff88, 0 0 30px #00ff88; }
+        }
+        @keyframes glow {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 1; }
+        }
+        @keyframes scanline {
+          0% { transform: translateY(-100%); }
+          100% { transform: translateY(100vh); }
         }
         * {
           scrollbar-width: thin;
@@ -307,6 +316,9 @@ function App() {
           background: rgba(0, 212, 255, 0.3);
           border-radius: 3px;
         }
+        *::-webkit-scrollbar-thumb:hover {
+          background: rgba(0, 212, 255, 0.5);
+        }
         /* 折叠按钮样式 */
         .ant-layout-sider-trigger {
           background: rgba(0, 20, 40, 0.9) !important;
@@ -320,6 +332,54 @@ function App() {
         .ant-menu-inline-collapsed .ant-menu-submenu-title {
           padding: 0 !important;
           justify-content: center;
+        }
+        /* SciFi Card hover glow effect */
+        .scifi-card:hover .scifi-glow-line {
+          animation: glow 1.5s ease-in-out infinite;
+        }
+        /* Provider Select dropdown styling */
+        .provider-select .ant-select-selection-item {
+          color: #00d4ff;
+        }
+        .provider-select .ant-select-item-option-selected {
+          background: linear-gradient(90deg, rgba(0, 212, 255, 0.2) 0%, rgba(124, 58, 237, 0.2) 100%) !important;
+        }
+        /* Button hover effects */
+        .ant-btn:not(:disabled):hover {
+          box-shadow: 0 0 20px rgba(0, 212, 255, 0.4) !important;
+          transform: translateY(-1px);
+        }
+        .ant-btn:not(:disabled):active {
+          transform: translateY(0);
+        }
+        /* Ant Input/Select focus glow */
+        .ant-input:focus,
+        .ant-input-focused,
+        .ant-select-focused .ant-select-selector {
+          box-shadow: 0 0 15px rgba(0, 212, 255, 0.3) !important;
+        }
+        /* Slider track glow */
+        .ant-slider-track {
+          box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+        }
+        .ant-slider-handle {
+          box-shadow: 0 0 10px rgba(0, 212, 255, 0.6) !important;
+        }
+        /* Tag hover effect */
+        .ant-tag {
+          transition: all 0.2s ease;
+        }
+        .ant-tag:hover {
+          box-shadow: 0 0 10px currentColor;
+          transform: scale(1.02);
+        }
+        /* Menu item hover with gradient */
+        .ant-menu-item:not(.ant-menu-item-selected):hover {
+          background: linear-gradient(90deg, rgba(0, 212, 255, 0.1) 0%, rgba(124, 58, 237, 0.05) 100%) !important;
+        }
+        .ant-menu-item-selected {
+          background: linear-gradient(90deg, rgba(0, 212, 255, 0.15) 0%, rgba(124, 58, 237, 0.1) 100%) !important;
+          border-right: 3px solid #00d4ff !important;
         }
       `}</style>
     </ErrorBoundary>

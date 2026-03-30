@@ -58,3 +58,15 @@ export const RocketIcon = () => (
     <path d="M12 2.5c-3.9 0-7 3.1-7 7 0 1.5.5 2.9 1.3 4.1L4 21l6.5-2.3c.8.5 1.7.8 2.5.8 3.9 0 7-3.1 7-7s-3.1-7-7-7zm0 12c-2.8 0-5-2.2-5-5s2.2-5 5-5 5 2.2 5 5-2.2 5-5 5z"/>
   </svg>
 );
+
+export const CheckCircleIcon = () => (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+  </svg>
+);
+
+export const XCircleIcon = () => (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+    <path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/>
+  </svg>
+);

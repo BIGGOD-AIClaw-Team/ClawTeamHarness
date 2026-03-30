@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import json
+import uuid
 from pathlib import Path
 from datetime import datetime
 import logging
@@ -97,8 +98,13 @@ async def list_agents(status: str = Query(None)):
 
 @router.post("/")
 async def create_agent(request: AgentCreateRequest):
-    """创建 Agent（初始状态为草稿）"""
-    agent_id = request.name.lower().replace(" ", "_")
+    """
+    创建 Agent（初始状态为草稿）
+    P0-3 安全修复: 使用 UUID 生成唯一 ID，避免 name.lower().replace(" ", "_") 
+    导致的 ID 冲突问题（如 "MyAgent" 和 "myagent" 都会生成 "myagent"）
+    """
+    # P0-3 修复: 使用 UUID 确保全局唯一性
+    agent_id = str(uuid.uuid4())[:8]  # 使用短 UUID 便于阅读
     path = AGENTS_DIR / f"{agent_id}.json"
     if path.exists():
         raise HTTPException(status_code=400, detail="Agent already exists")
@@ -253,10 +259,14 @@ class AgentExecuteRequest(BaseModel):
     message: str = ""
     session_id: Optional[str] = None
     input_data: dict = {}
+    model: Optional[str] = None  # P0-4 修复: 支持前端指定模型
 
 @router.post("/{agent_id}/execute")
 async def execute_agent(agent_id: str, request: AgentExecuteRequest):
-    """触发 Agent 执行 - 使用简洁的 Agent 模式"""
+    """
+    触发 Agent 执行 - 使用简洁的 Agent 模式
+    P0-4 修复: 支持前端传递 model 参数覆盖默认配置
+    """
     from ...agents.simple_agent import Agent as SimpleAgent
 
     # 加载 Agent
@@ -271,6 +281,11 @@ async def execute_agent(agent_id: str, request: AgentExecuteRequest):
     llm_config = data.get("llm_config", {})
     prompt_config = data.get("prompt_config", {})
     memory_config = data.get("memory_config", {})
+    
+    # P0-4 修复: 如果请求中指定了 model，覆盖 llm_config 中的 model
+    if request.model:
+        llm_config["model"] = request.model
+        logger.info(f"P0-4 修复: 使用前端指定模型 {request.model}")
 
     logger.info(f"=== execute_agent {agent_id} ===")
     logger.info(f"llm_config: {llm_config}")
@@ -306,7 +321,10 @@ async def execute_agent(agent_id: str, request: AgentExecuteRequest):
 
 @router.post("/{agent_id}/stream")
 async def stream_agent(agent_id: str, request: AgentExecuteRequest):
-    """流式对话 - 返回 Server-Sent Events，支持历史消息"""
+    """
+    流式对话 - 返回 Server-Sent Events，支持历史消息
+    P0-4 修复: 支持前端传递 model 参数覆盖默认配置
+    """
     from ...agents.simple_agent import Agent as SimpleAgent
 
     # 加载 Agent
@@ -321,6 +339,11 @@ async def stream_agent(agent_id: str, request: AgentExecuteRequest):
     llm_config = data.get("llm_config", {})
     prompt_config = data.get("prompt_config", {})
     memory_config = data.get("memory_config", {})
+    
+    # P0-4 修复: 如果请求中指定了 model，覆盖 llm_config 中的 model
+    if request.model:
+        llm_config["model"] = request.model
+        logger.info(f"P0-4 修复: stream_agent 使用前端指定模型 {request.model}")
 
     logger.info(f"=== stream_agent {agent_id} ===")
 

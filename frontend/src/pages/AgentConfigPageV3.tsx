@@ -11,6 +11,9 @@ const LLM_PROVIDERS = [
   { value: 'doubao', label: 'Doubao (豆包)', color: '#ff4757' },
   { value: 'wenxin', label: 'Wenxin (文心一言)', color: '#2932e1' },
   { value: 'hunyuan', label: 'Hunyuan (混元)', color: '#c0392b' },
+  { value: 'ollama', label: 'Ollama (本地)', color: '#00d4ff' },
+  { value: 'vllm', label: 'vLLM (本地)', color: '#00ff88' },
+  { value: 'custom', label: '✨ 自定义 Provider', color: '#ff00ff' },
 ];
 
 const AGENT_MODES = [
@@ -35,6 +38,19 @@ const PROMPT_TEMPLATES = [
   { value: 'custom', label: '✏️ 自定义', template: '' },
 ];
 
+// Provider 默认 Base URL 映射
+const PROVIDER_DEFAULT_BASE_URLS: Record<string, string> = {
+  'openai': 'https://api.openai.com/v1',
+  'anthropic': 'https://api.anthropic.com',
+  'minimax': 'https://api.minimax.chat/v1',
+  'qwen': 'https://dashscope.aliyuncs.com',
+  'glm': 'https://open.bigmodel.cn/api/paas/v4',
+  'doubao': 'https://ark.cn-beijing.volces.com/api/v3',
+  'wenxin': 'https://aip.baidubce.com',
+  'ollama': 'http://localhost:11434',
+  'vllm': 'http://localhost:8000',
+};
+
 const inputStyle: React.CSSProperties = {
   background: 'rgba(0, 0, 0, 0.3)',
   border: '1px solid rgba(0, 212, 255, 0.3)',
@@ -56,14 +72,15 @@ interface TestResult {
 interface AgentConfigPageV3Props {
   agentId?: string | null;
   onEditComplete?: () => void;
+  onPublishSuccess?: (agentId: string) => void;
 }
 
-export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete }: AgentConfigPageV3Props) {
+export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete, onPublishSuccess }: AgentConfigPageV3Props) {
   const [agentId, setAgentId] = useState<string | null>(propAgentId || null);
   const [config, setConfig] = useState({
     name: '',
     description: '',
-    llm: { provider: 'openai', model: 'gpt-4o', api_key: '', temperature: 0.7 },
+    llm: { provider: 'openai', model: 'gpt-4o', api_key: '', base_url: 'https://api.openai.com/v1', temperature: 0.7 },
     mode: { type: 'react', max_iterations: 10 },
     prompt: { system: '' },
     memory: { enabled: true, type: 'hybrid' },
@@ -78,16 +95,18 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete }: Agen
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [loadingModels, setLoadingModels] = useState(false);
-
-  const currentProvider = LLM_PROVIDERS.find(p => p.value === config.llm.provider);
+  const [modelError, setModelError] = useState<{ error: string; hint?: string } | null>(null);
+  const [manualModelInput, setManualModelInput] = useState(false);
 
   // 动态获取模型列表
-  const fetchModels = async (provider: string, apiKey: string) => {
+  const fetchModels = async (provider: string, apiKey: string, showMsg = true) => {
     if (!apiKey) {
       setModels([]);
+      setModelError(null);
       return;
     }
     setLoadingModels(true);
+    setModelError(null);
     try {
       const resp = await fetch('/api/models/list', {
         method: 'POST',
@@ -95,16 +114,46 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete }: Agen
         body: JSON.stringify({ provider, api_key: apiKey }),
       });
       const data = await resp.json();
-      if (data.models) {
+      
+      // 检查是否有错误
+      if (data.error || data.error_code) {
+        setModels([]);
+        const errorInfo = {
+          error: data.warning || data.error || '获取模型列表失败',
+          hint: data.error_hint
+        };
+        setModelError(errorInfo);
+        if (showMsg) {
+          message.error(data.warning || data.error);
+        }
+        return;
+      }
+      
+      if (data.models && data.models.length > 0) {
         setModels(data.models);
         // 如果当前模型不在列表中，自动选择第一个
-        if (data.models.length > 0 && !data.models.includes(config.llm.model)) {
+        if (!data.models.includes(config.llm.model)) {
           setConfig(prev => ({ ...prev, llm: { ...prev.llm, model: data.models[0] } }));
+        }
+        // 显示警告信息（如有）
+        if (data.warning && showMsg) {
+          message.warning(data.warning);
+        }
+      } else if (data.warning && data.models?.length === 0) {
+        // API 返回成功但没有模型
+        setModels([]);
+        setModelError({
+          error: data.warning,
+          hint: data.error_hint || '请尝试手动输入模型名称'
+        });
+        if (showMsg) {
+          message.warning(data.warning);
         }
       }
     } catch (e) {
       console.error('Failed to fetch models:', e);
       setModels([]);
+      setModelError({ error: '获取模型列表失败，请检查网络连接' });
     } finally {
       setLoadingModels(false);
     }
@@ -141,6 +190,7 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete }: Agen
               provider: llmCfg.provider || 'openai',
               model: llmCfg.model || 'gpt-4o',
               api_key: llmCfg.api_key || '',
+              base_url: llmCfg.base_url || PROVIDER_DEFAULT_BASE_URLS[llmCfg.provider] || '',
               temperature: llmCfg.temperature ?? 0.7,
             },
             mode: {
@@ -269,6 +319,8 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete }: Agen
       });
       if (resp.ok) {
         message.success('发布成功！Agent 已上线');
+        // 延迟跳转，让用户看到成功提示
+        setTimeout(() => onPublishSuccess?.(agentId), 300);
       } else {
         const data = await resp.json();
         message.error(data.detail || '发布失败');
@@ -292,7 +344,7 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete }: Agen
         setConfig({
           name: '',
           description: '',
-          llm: { provider: 'openai', model: 'gpt-4o', api_key: '', temperature: 0.7 },
+          llm: { provider: 'openai', model: 'gpt-4o', api_key: '', base_url: 'https://api.openai.com/v1', temperature: 0.7 },
           mode: { type: 'react', max_iterations: 10 },
           prompt: { system: '' },
           memory: { enabled: true, type: 'hybrid' },
@@ -313,11 +365,14 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete }: Agen
   };
 
   const handleProviderChange = (provider: string) => {
+    const defaultBaseUrl = PROVIDER_DEFAULT_BASE_URLS[provider] || '';
     setConfig({
       ...config,
-      llm: { ...config.llm, provider, model: '' },
+      llm: { ...config.llm, provider, model: '', base_url: defaultBaseUrl },
     });
     setModels([]);
+    setModelError(null);
+    setManualModelInput(false);
   };
 
   return (
@@ -369,30 +424,6 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete }: Agen
 
         {/* LLM Config Card */}
         <SciFiCard title="🧠 模型配置" icon="🤖">
-          {/* Provider icons */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-            {LLM_PROVIDERS.map(p => (
-              <div
-                key={p.value}
-                onClick={() => handleProviderChange(p.value)}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: 6,
-                  border: `1px solid ${config.llm.provider === p.value ? p.color : 'rgba(0,212,255,0.2)'}`,
-                  background: config.llm.provider === p.value ? `${p.color}22` : 'transparent',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  color: config.llm.provider === p.value ? p.color : '#888',
-                  transition: 'all 0.2s',
-                  boxShadow: config.llm.provider === p.value ? `0 0 10px ${p.color}44` : 'none',
-                }}
-                title={p.label}
-              >
-                {p.label.split(' ')[0]}
-              </div>
-            ))}
-          </div>
-
           <div style={{ marginBottom: 12 }}>
             <label style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>Provider</label>
             <Select
@@ -400,32 +431,134 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete }: Agen
               value={config.llm.provider}
               onChange={handleProviderChange}
               options={LLM_PROVIDERS.map(p => ({ value: p.value, label: p.label }))}
+              dropdownStyle={{ 
+                background: 'rgba(0, 20, 40, 0.95)',
+                border: '1px solid rgba(0, 212, 255, 0.3)',
+                borderRadius: 8,
+              }}
+              className="provider-select"
             />
           </div>
+          
+          {/* Base URL input - auto-filled based on provider, editable for custom providers */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>API Base URL</label>
+            <Input
+              style={inputStyle}
+              placeholder="https://api.your-provider.com/v1"
+              value={config.llm.base_url}
+              onChange={e => setConfig({ ...config, llm: { ...config.llm, base_url: e.target.value } })}
+              suffix={
+                config.llm.provider !== 'custom' && PROVIDER_DEFAULT_BASE_URLS[config.llm.provider] ? (
+                  <Button type="text" size="small" onClick={() => setConfig({ ...config, llm: { ...config.llm, base_url: PROVIDER_DEFAULT_BASE_URLS[config.llm.provider] || '' } })} style={{ color: '#00d4ff', fontSize: 10, padding: '0 4px' }}>
+                    重置
+                  </Button>
+                ) : null
+              }
+            />
+          </div>
+          
           <div style={{ marginBottom: 12 }}>
             <label style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>
               模型 {loadingModels && '(加载中...)'}
             </label>
-            <Select
-              style={selectStyle}
-              value={config.llm.model || undefined}
-              onChange={v => setConfig({ ...config, llm: { ...config.llm, model: v } })}
-              placeholder={loadingModels ? '加载中...' : '请选择模型'}
-              loading={loadingModels}
-              options={models.length > 0
-                ? models.map(m => ({ value: m, label: m }))
-                : (currentProvider?.models?.map(m => ({ value: m, label: m })) || [])
-              }
-            />
+            {manualModelInput ? (
+              <Input
+                style={inputStyle}
+                placeholder="手动输入模型名称，如 gpt-4o"
+                value={config.llm.model}
+                onChange={e => setConfig({ ...config, llm: { ...config.llm, model: e.target.value } })}
+                addonAfter={
+                  <Button type="text" size="small" onClick={() => setManualModelInput(false)}>
+                    ← 返回列表
+                  </Button>
+                }
+              />
+            ) : (
+              <Select
+                style={selectStyle}
+                value={config.llm.model || undefined}
+                onChange={v => {
+                  if (v === '__manual_input__') {
+                    setManualModelInput(true);
+                    setConfig({ ...config, llm: { ...config.llm, model: '' } });
+                  } else {
+                    setConfig({ ...config, llm: { ...config.llm, model: v } });
+                  }
+                }}
+                placeholder={loadingModels ? '加载中...' : '请选择模型'}
+                loading={loadingModels}
+                showSearch
+                allowClear
+                filterOption={(input, option) =>
+                  (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+                }
+                options={models.length > 0
+                  ? [...models.map(m => ({ value: m, label: m })), { value: '__manual_input__', label: '✨ 手动输入模型名称' }]
+                  : [{ value: '__manual_input__', label: '✨ 手动输入模型名称' }]
+                }
+                notFoundContent={
+                  <div>
+                    <div style={{ color: '#888', marginBottom: 8 }}>无法获取模型列表</div>
+                    <Button type="primary" size="small" onClick={() => setManualModelInput(true)}>
+                      手动输入模型
+                    </Button>
+                  </div>
+                }
+              />
+            )}
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>API Key</label>
-            <Input.Password
-              style={inputStyle}
-              placeholder="输入 API Key"
-              value={config.llm.api_key}
-              onChange={e => setConfig({ ...config, llm: { ...config.llm, api_key: e.target.value } })}
-            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Input.Password
+                style={{ ...inputStyle, flex: 1 }}
+                placeholder="输入 API Key"
+                value={config.llm.api_key}
+                onChange={e => setConfig({ ...config, llm: { ...config.llm, api_key: e.target.value } })}
+              />
+              <Button
+                onClick={() => fetchModels(config.llm.provider, config.llm.api_key)}
+                disabled={!config.llm.api_key}
+                loading={loadingModels}
+                style={{
+                  background: 'rgba(0, 212, 255, 0.2)',
+                  border: '1px solid #00d4ff',
+                  color: '#00d4ff',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                📥 获取模型
+              </Button>
+            </div>
+            {modelError && (
+              <div style={{
+                marginTop: 6,
+                padding: '8px 12px',
+                borderRadius: 4,
+                background: 'rgba(255, 71, 87, 0.1)',
+                border: '1px solid rgba(255, 71, 87, 0.3)',
+                color: '#ff6b81',
+                fontSize: 12,
+              }}>
+                <div style={{ fontWeight: 500, marginBottom: modelError.hint ? 4 : 0 }}>
+                  ❌ {modelError.error}
+                </div>
+                {modelError.hint && (
+                  <div style={{ color: '#ff8787' }}>
+                    💡 {modelError.hint}
+                  </div>
+                )}
+                <Button 
+                  type="link" 
+                  size="small" 
+                  onClick={() => setManualModelInput(true)}
+                  style={{ padding: '4px 0', height: 'auto', color: '#00d4ff' }}
+                >
+                  手动输入模型名称 →
+                </Button>
+              </div>
+            )}
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>Temperature: {config.llm.temperature}</label>

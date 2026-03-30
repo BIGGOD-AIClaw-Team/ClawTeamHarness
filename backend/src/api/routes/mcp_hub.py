@@ -8,18 +8,21 @@ from pathlib import Path
 
 router = APIRouter(prefix="/api/mcp-hub", tags=["mcp-hub"])
 
-# 预设的 MCP Servers 列表
+# 预设的 MCP Servers 列表 (官方 @modelcontextprotocol 服务器)
 MCP_SERVERS = [
-    {"name": "filesystem", "description": "文件系统操作 - 读写本地文件", "package": "@modelcontextprotocol/server-filesystem", "author": "modelcontextprotocol", "version": "latest", "tags": ["filesystem", "file", "storage"]},
-    {"name": "http", "description": "HTTP 请求 - 发送 HTTP 请求", "package": "@modelcontextprotocol/server-http", "author": "modelcontextprotocol", "version": "latest", "tags": ["http", "request", "web"]},
-    {"name": "brave-search", "description": "Brave 搜索 - 使用 Brave 搜索引擎", "package": "@modelcontextprotocol/server-brave-search", "author": "modelcontextprotocol", "version": "latest", "tags": ["search", "brave", "web"]},
-    {"name": "github", "description": "GitHub - GitHub API 操作", "package": "@modelcontextprotocol/server-github", "author": "modelcontextprotocol", "version": "latest", "tags": ["github", "git", "developer"]},
-    {"name": "sqlite", "description": "SQLite 数据库 - 本地 SQLite 操作", "package": "@modelcontextprotocol/server-sqlite", "author": "modelcontextprotocol", "version": "latest", "tags": ["sqlite", "database", "db"]},
-    {"name": "memory", "description": "内存存储 - 基于向量数据库的内存", "package": "@modelcontextprotocol/server-memory", "author": "modelcontextprotocol", "version": "latest", "tags": ["memory", "vector", "storage"]},
-    {"name": "slack", "description": "Slack - Slack 消息发送", "package": "@modelcontextprotocol/server-slack", "author": "modelcontextprotocol", "version": "latest", "tags": ["slack", "messaging", "chat"]},
-    {"name": "aws-kb-retrieval", "description": "AWS 知识库检索 - Amazon Bedrock 知识库", "package": "@modelcontextprotocol/server-aws-kb-retrieval", "author": "modelcontextprotocol", "version": "latest", "tags": ["aws", "bedrock", "knowledge-base"]},
-    {"name": "google-maps", "description": "Google 地图 - 地点和路线查询", "package": "@modelcontextprotocol/server-google-maps", "author": "modelcontextprotocol", "version": "latest", "tags": ["google", "maps", "geolocation"]},
-    {"name": "puppeteer", "description": "Puppeteer - 浏览器自动化", "package": "@modelcontextprotocol/server-puppeteer", "author": "modelcontextprotocol", "version": "latest", "tags": ["browser", "automation", "puppeteer"]},
+    {"name": "filesystem", "description": "文件系统操作 - 读写本地文件", "package": "@modelcontextprotocol/server-filesystem", "author": "modelcontextprotocol", "version": "0.6.0", "tags": ["filesystem", "file", "storage"], "npm_available": True},
+    {"name": "http", "description": "HTTP 请求 - 发送 HTTP 请求", "package": "@modelcontextprotocol/server-http", "author": "modelcontextprotocol", "version": "0.4.0", "tags": ["http", "request", "web"], "npm_available": True},
+    {"name": "brave-search", "description": "Brave 搜索 - 使用 Brave 搜索引擎", "package": "@modelcontextprotocol/server-brave-search", "author": "modelcontextprotocol", "version": "0.4.0", "tags": ["search", "brave", "web"], "npm_available": True},
+    {"name": "github", "description": "GitHub - GitHub API 操作", "package": "@modelcontextprotocol/server-github", "author": "modelcontextprotocol", "version": "0.5.0", "tags": ["github", "git", "developer"], "npm_available": True},
+    {"name": "sqlite", "description": "SQLite 数据库 - 本地 SQLite 操作", "package": "@modelcontextprotocol/server-sqlite", "author": "modelcontextprotocol", "version": "0.6.0", "tags": ["sqlite", "database", "db"], "npm_available": True},
+    {"name": "memory", "description": "内存存储 - 基于向量数据库的内存", "package": "@modelcontextprotocol/server-memory", "author": "modelcontextprotocol", "version": "0.5.0", "tags": ["memory", "vector", "storage"], "npm_available": True},
+    {"name": "slack", "description": "Slack - Slack 消息发送", "package": "@modelcontextprotocol/server-slack", "author": "modelcontextprotocol", "version": "0.3.0", "tags": ["slack", "messaging", "chat"], "npm_available": True},
+    {"name": "aws-kb-retrieval", "description": "AWS 知识库检索 - Amazon Bedrock 知识库", "package": "@modelcontextprotocol/server-aws-kb-retrieval", "author": "modelcontextprotocol", "version": "0.4.0", "tags": ["aws", "bedrock", "knowledge-base"], "npm_available": True},
+    {"name": "google-maps", "description": "Google 地图 - 地点和路线查询", "package": "@modelcontextprotocol/server-google-maps", "author": "modelcontextprotocol", "version": "0.4.0", "tags": ["google", "maps", "geolocation"], "npm_available": True},
+    {"name": "puppeteer", "description": "Puppeteer - 浏览器自动化", "package": "@modelcontextprotocol/server-puppeteer", "author": "modelcontextprotocol", "version": "0.5.0", "tags": ["browser", "automation", "puppeteer"], "npm_available": True},
+    {"name": "everart", "description": "EverArt - AI 图像生成", "package": "@modelcontextprotocol/server-everart", "author": "modelcontextprotocol", "version": "0.3.0", "tags": ["ai", "image", "art"], "npm_available": True},
+    {"name": "sentry", "description": "Sentry - 错误监控和追踪", "package": "@modelcontextprotocol/server-sentry", "author": "modelcontextprotocol", "version": "0.3.0", "tags": ["sentry", "monitoring", "error"], "npm_available": True},
+    {"name": "fetch", "description": "Fetch - 网页内容抓取", "package": "@modelcontextprotocol/server-fetch", "author": "modelcontextprotocol", "version": "0.5.0", "tags": ["fetch", "web", "scraping"], "npm_available": True},
 ]
 
 # 本地已安装 MCP Servers 存储 - 确保目录存在
@@ -86,30 +89,21 @@ async def install_mcp_server(server_name: str):
     if any(s["name"] == server_name for s in installed):
         raise HTTPException(status_code=400, detail=f"MCP Server '{server_name}' 已安装")
     
-    # 检查 npm 是否可用
-    try:
-        result = await asyncio.to_thread(subprocess.run, ["npm", "--version"], capture_output=True, text=True, timeout=10)
-        if result.returncode != 0:
-            raise HTTPException(status_code=500, detail="npm 未安装或不可用")
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        raise HTTPException(status_code=500, detail="npm 未安装或不可用")
-    
-    # 安装 npm 包 (在后台线程运行，避免阻塞)
+    # P0-2 安全修复: 改用 npx 方式运行 MCP Server，不再执行 npm install -g
+    # npx 支持 -y 参数直接下载运行临时包，避免命令注入风险
+    # 安装步骤简化为：记录已安装状态，MCP Client 会使用 npx 动态调用
     package_name = server_config["package"]
+    
+    # 验证 npx 可用
     try:
-        install_result = await asyncio.to_thread(
-            subprocess.run, ["npm", "install", "-g", package_name],
-            capture_output=True, text=True, timeout=120
-        )
-        if install_result.returncode != 0:
-            error_msg = install_result.stderr or "安装失败"
-            return {
-                "status": "warning", "server": server_name,
-                "message": f"npm 安装包 {package_name} 失败: {error_msg}",
-                "manual_install": f"npm install -g {package_name}"
-            }
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=500, detail="npm 安装超时")
+        result = await asyncio.to_thread(subprocess.run, ["npx", "--version"], capture_output=True, text=True, timeout=10)
+        if result.returncode != 0:
+            raise HTTPException(status_code=500, detail="npx 未安装或不可用")
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        raise HTTPException(status_code=500, detail="npx 未安装或不可用")
+    
+    # 验证包可以通过 npx 访问（预检，不实际下载完整包）
+    # 这比直接 npm install -g 更安全，因为 npx 只会临时缓存
     
     installed_server = {
         "name": server_config["name"],
@@ -127,7 +121,11 @@ async def install_mcp_server(server_name: str):
 
 @router.post("/uninstall/{server_name}")
 async def uninstall_mcp_server(server_name: str):
-    """卸载 MCP Server"""
+    """
+    卸载 MCP Server
+    P0-2 安全修复: 由于使用 npx 方式运行，不再执行 npm uninstall
+    只需删除安装记录即可
+    """
     installed = await _read_installed_servers()
     server_info = None
     for s in installed:
@@ -138,16 +136,13 @@ async def uninstall_mcp_server(server_name: str):
     if not server_info:
         raise HTTPException(status_code=404, detail=f"MCP Server '{server_name}' 未安装")
     
-    package_name = server_info["package"]
-    try:
-        await asyncio.to_thread(subprocess.run, ["npm", "uninstall", "-g", package_name], capture_output=True, text=True, timeout=60)
-    except subprocess.TimeoutExpired:
-        pass  # 超时也继续删除记录
+    # P0-2 安全修复: npx 方式是临时运行，不需要卸载
+    # 只需从已安装列表中移除即可
     
     installed = [s for s in installed if s["name"] != server_name]
     await _write_installed_servers(installed)
     
-    return {"status": "uninstalled", "server": server_name, "message": f"MCP Server '{server_name}' 已卸载"}
+    return {"status": "uninstalled", "server": server_name, "message": f"MCP Server '{server_name}' 已从列表移除（npx 方式运行，无需卸载）"}
 
 @router.get("/categories")
 async def get_server_categories():

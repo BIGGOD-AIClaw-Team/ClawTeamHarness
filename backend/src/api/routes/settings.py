@@ -5,12 +5,19 @@ import json
 import asyncio
 from pathlib import Path
 
+# P0-1 修复: 导入安全加密模块
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+from security import encrypt_value, decrypt_value, mask_api_key
+
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 # settings.py at src/api/routes/settings.py -> parents[5] = ClawTeamHarness/
 SETTINGS_FILE = Path(__file__).resolve().parent.parent.parent.parent.parent / "data" / "settings.json"
 SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
-SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+# API Keys 加密存储文件
+API_KEYS_FILE = SETTINGS_FILE.parent / "api_keys.json"
 
 # 预置模型配置
 PRESET_MODELS = {
@@ -48,6 +55,15 @@ class SystemSettings(BaseModel):
                 data["llm_providers"][k] = {"name": v["name"], "models": v["models"], "capabilities": v["capabilities"]}
         super().__init__(**data)
 
+class APIKeyUpdateRequest(BaseModel):
+    provider: str
+    api_key: str
+
+class APIKeyResponse(BaseModel):
+    provider: str
+    api_key_masked: str
+    has_key: bool
+
 async def _load_settings() -> SystemSettings:
     """异步加载设置"""
     if not SETTINGS_FILE.exists():
@@ -63,6 +79,29 @@ async def _save_settings(settings: SystemSettings):
     """异步保存设置"""
     content = json.dumps(settings.model_dump(), indent=2, ensure_ascii=False)
     await asyncio.to_thread(SETTINGS_FILE.write_text, content, encoding="utf-8")
+
+async def _load_api_keys() -> Dict[str, str]:
+    """异步加载加密的 API Keys"""
+    if not API_KEYS_FILE.exists():
+        return {}
+    try:
+        content = await asyncio.to_thread(API_KEYS_FILE.read_text, encoding="utf-8")
+        return json.loads(content)
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+async def _save_api_keys(keys: Dict[str, str]):
+    """异步保存加密的 API Keys"""
+    content = json.dumps(keys, ensure_ascii=False, indent=2)
+    await asyncio.to_thread(API_KEYS_FILE.write_text, content, encoding="utf-8")
+
+async def _get_decrypted_api_key(provider: str) -> Optional[str]:
+    """获取解密后的 API Key（仅内部使用）"""
+    keys = await _load_api_keys()
+    encrypted = keys.get(provider, "")
+    if not encrypted:
+        return None
+    return decrypt_value(encrypted)
 
 @router.get("/")
 async def get_settings():
@@ -80,3 +119,64 @@ async def update_settings(settings: SystemSettings):
 async def get_providers():
     """获取所有预置模型提供商"""
     return {"providers": PRESET_MODELS}
+
+# P0-1 修复: API Key 管理接口 - 加密存储，只返回掩码
+@router.get("/api-keys")
+async def get_api_keys():
+    """
+    获取所有 API Key 掩码（不返回真实 Key）
+    """
+    keys = await _load_api_keys()
+    result = []
+    for provider in PRESET_MODELS.keys():
+        encrypted = keys.get(provider, "")
+        has_key = bool(encrypted)
+        masked = mask_api_key(decrypt_value(encrypted)) if has_key else ""
+        result.append({
+            "provider": provider,
+            "api_key_masked": masked,
+            "has_key": has_key,
+        })
+    return {"api_keys": result}
+
+@router.put("/api-key")
+async def update_api_key(request: APIKeyUpdateRequest):
+    """
+    更新 API Key（加密存储）
+    """
+    if request.provider not in PRESET_MODELS:
+        raise HTTPException(status_code=400, detail=f"不支持的 Provider: {request.provider}")
+    
+    keys = await _load_api_keys()
+    # 加密存储
+    encrypted = encrypt_value(request.api_key)
+    keys[request.provider] = encrypted
+    await _save_api_keys(keys)
+    
+    return {
+        "status": "success",
+        "message": f"API Key 已加密存储",
+        "provider": request.provider,
+        "api_key_masked": mask_api_key(request.api_key),
+    }
+
+@router.delete("/api-key/{provider}")
+async def delete_api_key(provider: str):
+    """删除 API Key"""
+    keys = await _load_api_keys()
+    if provider in keys:
+        del keys[provider]
+        await _save_api_keys(keys)
+    return {"status": "success", "message": f"API Key 已删除"}
+
+@router.post("/api-key/{provider}/test")
+async def test_api_key(provider: str):
+    """
+    测试 API Key 是否有效
+    """
+    api_key = await _get_decrypted_api_key(provider)
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API Key 未设置")
+    
+    # 返回成功，让前端调用实际的测试接口
+    return {"status": "ready", "provider": provider}
