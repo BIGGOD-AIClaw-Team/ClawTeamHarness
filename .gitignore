@@ -1,36 +1,23 @@
-# Environment
+# Data directories (runtime data)
+backend/data/
+data/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Node modules
+node_modules/
+
+# Environment files
 .env
 .env.local
 .env.*.local
-*.env
-
-# Secrets
-*.pem
-*.key
-credentials.json
-token.json
-
-# Logs
-*.log
-logs/
-
-# Node
-node_modules/
-dist/
-build/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
-.coverage
-venv/
-env/
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
 
@@ -38,6 +25,6 @@ env/
 .DS_Store
 Thumbs.db
 
-# Secrets scanning
-secrets.json
-api_keys.json
+# Logs
+*.log
+logs/
