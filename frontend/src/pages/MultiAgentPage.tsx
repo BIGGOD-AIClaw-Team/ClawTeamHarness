@@ -1,18 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   Card, Tabs, Button, Space, Typography, Tag, Select, Input, Modal, message,
-  List, Avatar, Timeline, Statistic, Row, Col, Popconfirm, Table, Badge,
-  Tooltip, Divider, Switch, Alert, Progress,
+  Avatar, Timeline, Statistic, Row, Col, Popconfirm, Table, Empty, Badge,
+  Tooltip, Switch, Progress,
 } from 'antd';
 import {
   TeamOutlined, RobotOutlined, SendOutlined, PlusOutlined, DeleteOutlined,
-  PlayCircleOutlined, StopOutlined, ReloadOutlined, CheckCircleOutlined,
-  ExclamationCircleOutlined, ClockCircleOutlined, SyncOutlined,
+PlayCircleOutlined, StopOutlined, CheckCircleOutlined,
+ClockCircleOutlined, SyncOutlined,
   MessageOutlined, EyeOutlined, ThunderboltOutlined, AimOutlined,
-  AlertOutlined, PlusCircleOutlined, UserOutlined, SettingOutlined,
+AlertOutlined, PlusCircleOutlined,
 } from '@ant-design/icons';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 // ==================== Types ====================
@@ -617,13 +617,13 @@ export function MultiAgentPage() {
             value={newMission.assigned_to}
             onChange={v => setNewMission({ ...newMission, assigned_to: v })}
             placeholder="分配给哪些角色（留空则分配给所有成员）"
-            options={agents.filter(a => a.enabled).map(a => ({ value: a.role, label: `${a.icon.props?.children || ''} ${a.name}` }))}
+            options={agents.filter(a => a.enabled).map(a => ({ value: a.role, label: `${a.name}` }))}
           />
         </div>
       </Modal>
     </div>
   );
+
 }
 
-// Import Empty from antd
-import { Empty } from 'antd';
+export default MultiAgentPage;

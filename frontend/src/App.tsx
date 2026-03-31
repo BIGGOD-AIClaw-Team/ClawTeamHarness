@@ -5,7 +5,7 @@ import { MemoryPage } from './pages/MemoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ChatPage } from './pages/ChatPage';
 import { APIPage } from './pages/APIPage';
-import { WorkflowPage } from './pages/WorkflowPage';
+import { SkillsOrchestratorPage } from './pages/SkillsOrchestratorPage';
 import { MultiAgentPage } from './pages/MultiAgentPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -223,7 +223,7 @@ function App() {
       case 'agent-config-v3': return <AgentConfigPageV3 key={editingAgentId || 'new'} agentId={editingAgentId} onEditComplete={() => setEditingAgentId(null)} onPublishSuccess={(agentId) => { setChatInitialAgentId(agentId); setCurrentPage('chat'); }} />;
       case 'chat': return <ChatPage key={chatInitialAgentId || 'default'} onEditAgent={startEditAgent} initialAgentId={chatInitialAgentId} />;
       case 'memory': return <MemoryPage />;
-      case 'skills-orchestrator': return <WorkflowPage />;
+      case 'skills-orchestrator': return <SkillsOrchestratorPage />;
       case 'multi-agent': return <MultiAgentPage />;
       case 'api': return <APIPage />;
       case 'settings': return <SettingsPage />;
