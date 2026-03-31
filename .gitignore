@@ -2,6 +2,10 @@
 backend/data/
 data/
 
+# Build output
+frontend/dist/
+dist/
+
 # Python cache
 __pycache__/
 *.pyc
