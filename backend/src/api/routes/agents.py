@@ -61,6 +61,12 @@ class DecisionConfig(BaseModel):
 class ToolsConfig(BaseModel):
     enabled: bool = True
 
+class SubAgent(BaseModel):
+    id: str
+    role: str
+    name: str
+    enabled: bool = True
+
 class AgentCreateRequest(BaseModel):
     name: str
     description: Optional[str] = ""
@@ -71,6 +77,9 @@ class AgentCreateRequest(BaseModel):
     memory_config: Optional[dict] = {}
     decision_config: Optional[dict] = {}
     tools_config: Optional[dict] = {}
+    skills: Optional[List[str]] = []
+    sub_agents: Optional[List[dict]] = []
+    mcp_tools: Optional[List[str]] = []
     status: str = "draft"
 
 class AgentUpdateRequest(BaseModel):
@@ -83,6 +92,9 @@ class AgentUpdateRequest(BaseModel):
     memory_config: Optional[dict] = None
     decision_config: Optional[dict] = None
     tools_config: Optional[dict] = None
+    skills: Optional[List[str]] = None
+    sub_agents: Optional[List[dict]] = None
+    mcp_tools: Optional[List[str]] = None
     status: Optional[str] = None
 
 @router.get("/")
@@ -126,6 +138,9 @@ async def create_agent(request: AgentCreateRequest):
         "memory_config": request.memory_config or {"enabled": True, "type": "hybrid"},
         "decision_config": request.decision_config or {"auto_critique": True},
         "tools_config": request.tools_config or {"enabled": True},
+        "skills": request.skills or [],
+        "sub_agents": request.sub_agents or [],
+        "mcp_tools": request.mcp_tools or [],
         "status": "draft",
         "created_at": datetime.now().isoformat(),
     }
@@ -178,6 +193,12 @@ async def update_agent(agent_id: str, request: AgentUpdateRequest):
         agent_data["decision_config"] = request.decision_config
     if request.tools_config is not None:
         agent_data["tools_config"] = request.tools_config
+    if request.skills is not None:
+        agent_data["skills"] = request.skills
+    if request.sub_agents is not None:
+        agent_data["sub_agents"] = request.sub_agents
+    if request.mcp_tools is not None:
+        agent_data["mcp_tools"] = request.mcp_tools
     
     agent_data["updated_at"] = datetime.now().isoformat()
     
