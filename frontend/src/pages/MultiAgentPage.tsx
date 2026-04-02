@@ -1,16 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card, Tabs, Button, Space, Typography, Tag, Select, Input, Modal, message,
-  Avatar, Timeline, Statistic, Row, Col, Popconfirm, Table, Empty, Badge,
-  Tooltip, Switch, Progress, Drawer, List, Divider, Alert, InputNumber,
+  Avatar,  Statistic, Row, Col, Popconfirm, Table, Empty, Badge,
+  Tooltip, Switch, Progress, Drawer, List, Divider,
 } from 'antd';
 import {
   TeamOutlined, RobotOutlined, SendOutlined, PlusOutlined, DeleteOutlined,
   PlayCircleOutlined, StopOutlined, CheckCircleOutlined,
-  ClockCircleOutlined, SyncOutlined,
+  SyncOutlined,
   MessageOutlined, EyeOutlined, ThunderboltOutlined, AimOutlined,
-  AlertOutlined, PlusCircleOutlined, SettingOutlined, WorkflowOutlined,
-  MonitorOutlined, BarChartOutlined, ArrowRightOutlined,
+  AlertOutlined, ShareAltOutlined,
+  MonitorOutlined, ArrowRightOutlined,
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -226,7 +226,7 @@ export function MultiAgentPage() {
 
   // Team Config State
   const [teams, setTeams] = useState<Team[]>([]);
-  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [_, setSelectedTeam] = useState<Team | null>(null);
   const [teamDrawerVisible, setTeamDrawerVisible] = useState(false);
   const [newTeamConfig, setNewTeamConfig] = useState({ name: '', description: '', agents: [] as TeamAgent[] });
 
@@ -244,7 +244,7 @@ export function MultiAgentPage() {
   const [stepDrawerVisible, setStepDrawerVisible] = useState(false);
 
   // Task Monitor State
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [_, setPollingInterval] = useState<ReturnType<typeof setInterval> | null>(null);
 
   // Statistics
   const totalAgents = agents.filter(a => a.enabled).length;
@@ -975,7 +975,7 @@ export function MultiAgentPage() {
             // ==================== Workflow Orchestration Tab ====================
             {
               key: 'workflow',
-              label: <span><WorkflowOutlined /> 工作流编排</span>,
+              label: <span><ShareAltOutlined /> 工作流编排</span>,
               children: (
                 <div>
                   <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -984,7 +984,7 @@ export function MultiAgentPage() {
                         style={{ width: 150 }}
                         placeholder="筛选团队"
                         allowClear
-                        onChange={(v) => loadWorkflowTasks()}
+                        onChange={() => loadWorkflowTasks()}
                       />
                     </Space>
                     <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateTaskModalVisible(true)}>
@@ -1229,7 +1229,7 @@ export function MultiAgentPage() {
           <Button size="small" icon={<PlusOutlined />} onClick={handleAddTeamAgent}>添加成员</Button>
         </div>
         <div style={{ maxHeight: 300, overflow: 'auto' }}>
-          {newTeamConfig.agents.map((agent, idx) => (
+          {newTeamConfig.agents.map((agent, _idx) => (
             <Card key={agent.id} size="small" style={{ marginBottom: 8, background: 'rgba(0, 20, 40, 0.4)' }}>
               <Row gutter={[8, 8]} align="middle">
                 <Col span={8}>
@@ -1254,7 +1254,7 @@ export function MultiAgentPage() {
                   <Switch
                     size="small"
                     checked={agent.enabled}
-                    onChange={(v) => handleUpdateTeamAgent(agent.id, 'enabled', v)}
+                    onChange={() => handleUpdateTeamAgent(agent.id, 'enabled', true)}
                   />
                 </Col>
                 <Col span={2}>
@@ -1318,7 +1318,7 @@ export function MultiAgentPage() {
             <Button size="small" icon={<PlusOutlined />} onClick={handleAddStep}>添加步骤</Button>
           </div>
           <div style={{ maxHeight: 250, overflow: 'auto' }}>
-            {newTaskConfig.steps.map((step, idx) => (
+            {newTaskConfig.steps.map((step, _idx) => (
               <Card key={step.id} size="small" style={{ marginBottom: 8, background: 'rgba(0, 20, 40, 0.4)' }}>
                 <Space style={{ width: '100%', justifyContent: 'space-between' }}>
                   <Space>

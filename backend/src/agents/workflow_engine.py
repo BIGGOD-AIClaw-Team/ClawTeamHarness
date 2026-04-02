@@ -1,10 +1,55 @@
 """Workflow orchestration engine for multi-agent team collaboration."""
 import asyncio
 import logging
+import time
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Optional, Callable
 
 logger = logging.getLogger(__name__)
+
+# ==================== Retry Utilities ====================
+
+async def execute_with_retry(
+    coro,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    timeout: Optional[float] = None,
+):
+    """
+    Execute a coroutine with exponential backoff retry and optional timeout.
+    
+    Args:
+        coro: The coroutine to execute
+        max_retries: Maximum number of retry attempts
+        base_delay: Base delay in seconds (doubles each retry)
+        timeout: Optional timeout in seconds
+    
+    Returns:
+        The result of the coroutine
+    
+    Raises:
+        The last exception if all retries fail
+    """
+    last_error = None
+    
+    for attempt in range(max_retries + 1):
+        try:
+            if timeout:
+                return await asyncio.wait_for(coro, timeout=timeout)
+            return await coro
+        except asyncio.TimeoutError:
+            last_error = asyncio.TimeoutError(f"Step timed out after {timeout}s")
+            logger.warning(f"Attempt {attempt + 1} timed out, retries left: {max_retries - attempt}")
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Attempt {attempt + 1} failed: {e}, retries left: {max_retries - attempt}")
+        
+        if attempt < max_retries:
+            delay = base_delay * (2 ** attempt)  # Exponential backoff
+            logger.info(f"Retrying in {delay}s...")
+            await asyncio.sleep(delay)
+    
+    raise last_error
 
 
 # ==================== Data Models ====================
@@ -96,6 +141,19 @@ class WorkflowEngine:
     def __init__(self):
         self._step_registry: dict[str, WorkflowStep] = {}
         self._agent_executor = None  # Agent 执行器注入
+        self._persistence_callback: Optional[Callable] = None  # 持久化回调
+
+    def set_persistence_callback(self, callback: Callable) -> None:
+        """设置持久化回调函数，用于保存工作流执行结果到数据库"""
+        self._persistence_callback = callback
+
+    async def _persist_result(self, workflow_def: dict, result: WorkflowResult, initial_state: dict = None) -> None:
+        """保存工作流结果到持久化存储"""
+        if self._persistence_callback:
+            try:
+                await self._persistence_callback(workflow_def, result, initial_state)
+            except Exception as e:
+                logger.error(f"Failed to persist workflow result: {e}")
 
     def register_step(self, step: WorkflowStep) -> None:
         """注册一个工作流步骤"""
@@ -107,8 +165,7 @@ class WorkflowEngine:
         self._agent_executor = executor
 
     async def execute_step(self, step: WorkflowStep, state: dict = None) -> StepResult:
-        """执行单个步骤"""
-        import time
+        """执行单个步骤（支持超时和重试）"""
         start = time.time()
 
         try:
@@ -116,7 +173,15 @@ class WorkflowEngine:
 
             if step.step_type == "agent":
                 # 通过 Agent Engine 执行
-                result = await self._execute_agent_step(step, state)
+                coro = self._execute_agent_step(step, state)
+                if step.timeout or step.retry > 0:
+                    result = await execute_with_retry(
+                        coro,
+                        max_retries=step.retry,
+                        timeout=step.timeout
+                    )
+                else:
+                    result = await coro
             elif step.step_type == "tool":
                 # 直接执行工具
                 result = await self._execute_tool_step(step, state)
@@ -138,6 +203,15 @@ class WorkflowEngine:
                 duration=duration
             )
 
+        except asyncio.TimeoutError as e:
+            duration = time.time() - start
+            logger.error(f"Step {step.id} timed out after {step.timeout}s")
+            return StepResult(
+                step_id=step.id,
+                success=False,
+                error=f"Timeout after {step.timeout}s: {e}",
+                duration=duration
+            )
         except Exception as e:
             duration = time.time() - start
             logger.exception(f"Step {step.id} failed: {e}")
@@ -176,7 +250,7 @@ class WorkflowEngine:
     async def execute_sequential(self, steps: list[WorkflowStep], state: dict = None) -> WorkflowResult:
         """顺序执行"""
         results = []
-        total_start = asyncio.get_event_loop().time()
+        total_start = time.time()
 
         for step in steps:
             result = await self.execute_step(step, state)
@@ -185,19 +259,19 @@ class WorkflowEngine:
                 return WorkflowResult(
                     status="failed",
                     results=results,
-                    total_duration=asyncio.get_event_loop().time() - total_start,
+                    total_duration=time.time() - total_start,
                     error=f"Step {step.id} failed: {result.error}"
                 )
 
         return WorkflowResult(
             status="completed",
             results=results,
-            total_duration=asyncio.get_event_loop().time() - total_start
+            total_duration=time.time() - total_start
         )
 
     async def execute_parallel(self, steps: list[WorkflowStep], state: dict = None) -> WorkflowResult:
         """并行执行"""
-        total_start = asyncio.get_event_loop().time()
+        total_start = time.time()
         tasks = [self.execute_step(s, state) for s in steps]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -216,7 +290,7 @@ class WorkflowEngine:
         return WorkflowResult(
             status="completed",
             results=processed_results,
-            total_duration=asyncio.get_event_loop().time() - total_start
+            total_duration=time.time() - total_start
         )
 
     async def execute_conditional(
@@ -226,20 +300,20 @@ class WorkflowEngine:
         state: dict = None
     ) -> WorkflowResult:
         """条件执行"""
-        total_start = asyncio.get_event_loop().time()
+        total_start = time.time()
 
         if condition_evaluator.evaluate(condition, state or {}):
             result = await self.execute_step(step, state)
             return WorkflowResult(
                 status="completed",
                 results=[result],
-                total_duration=asyncio.get_event_loop().time() - total_start
+                total_duration=time.time() - total_start
             )
         else:
             return WorkflowResult(
                 status="skipped",
                 results=[],
-                total_duration=asyncio.get_event_loop().time() - total_start
+                total_duration=time.time() - total_start
             )
 
     async def execute_workflow(
@@ -277,14 +351,20 @@ class WorkflowEngine:
         state = initial_state or {}
 
         if wf_type == "parallel":
-            return await self.execute_parallel(steps, state)
+            result = await self.execute_parallel(steps, state)
         elif wf_type == "conditional":
             condition = Condition(**workflow_def.get("condition", {}))
             if steps:
-                return await self.execute_conditional(steps[0], condition, state)
-            return WorkflowResult(status="skipped", results=[])
+                result = await self.execute_conditional(steps[0], condition, state)
+            else:
+                result = WorkflowResult(status="skipped", results=[])
         else:
-            return await self.execute_sequential(steps, state)
+            result = await self.execute_sequential(steps, state)
+
+        # 持久化结果
+        await self._persist_result(workflow_def, result, initial_state)
+
+        return result
 
 
 # Global workflow engine instance

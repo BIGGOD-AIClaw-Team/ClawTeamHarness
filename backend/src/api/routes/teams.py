@@ -1,12 +1,15 @@
 """Team collaboration and workflow execution API routes."""
 import uuid
 import asyncio
+import json
 import logging
 from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+from ...db.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -54,10 +57,10 @@ class TaskConfig(BaseModel):
 # ==================== In-Memory Stores ====================
 
 class TeamStore:
-    """团队存储管理器"""
+    """团队存储管理器 - 基于SQLite持久化"""
 
     def __init__(self):
-        self._teams: dict[str, dict] = {}
+        self._db = get_db()
 
     def create_team(self, config: TeamConfig) -> dict:
         team_id = str(uuid.uuid4())
@@ -69,20 +72,21 @@ class TeamStore:
             "shared_context": config.shared_context,
             "created_at": datetime.now().isoformat(),
         }
-        self._teams[team_id] = team
+        self._db.save_team(team)
         logger.info(f"Team created: {team_id} ({config.name})")
         return team
 
     def get_team(self, team_id: str) -> Optional[dict]:
-        return self._teams.get(team_id)
+        return self._db.get_team(team_id)
 
     def list_teams(self) -> list[dict]:
-        return list(self._teams.values())
+        return self._db.list_teams()
 
     def update_team(self, team_id: str, config: TeamConfig) -> Optional[dict]:
-        if team_id not in self._teams:
+        existing = self._db.get_team(team_id)
+        if not existing:
             return None
-        team = self._teams[team_id]
+        team = existing.copy()
         team.update({
             "name": config.name,
             "description": config.description,
@@ -90,15 +94,15 @@ class TeamStore:
             "shared_context": config.shared_context,
             "updated_at": datetime.now().isoformat(),
         })
+        self._db.save_team(team)
         return team
 
 
 class TaskStore:
-    """任务存储管理器"""
+    """任务存储管理器 - 基于SQLite持久化"""
 
     def __init__(self):
-        self._tasks: dict[str, dict] = {}
-        self._workflow_results: dict[str, dict] = {}
+        self._db = get_db()
 
     def create_task(self, config: TaskConfig) -> dict:
         task_id = str(uuid.uuid4())
@@ -118,24 +122,19 @@ class TaskStore:
             "started_at": None,
             "completed_at": None,
         }
-        self._tasks[task_id] = task
+        self._db.save_task(task)
         logger.info(f"Task created: {task_id} ({config.name})")
         return task
 
     def get_task(self, task_id: str) -> Optional[dict]:
-        return self._tasks.get(task_id)
+        return self._db.get_task(task_id)
 
     def list_tasks(self, team_id: Optional[str] = None, status: Optional[str] = None) -> list[dict]:
-        tasks = list(self._tasks.values())
-        if team_id:
-            tasks = [t for t in tasks if t.get("team_id") == team_id]
-        if status:
-            tasks = [t for t in tasks if t.get("status") == status]
-        return tasks
+        return self._db.list_tasks(team_id=team_id, status=status)
 
     def update_task_status(self, task_id: str, status: str, result: dict = None, error: str = None) -> None:
-        if task_id in self._tasks:
-            task = self._tasks[task_id]
+        task = self._db.get_task(task_id)
+        if task:
             task["status"] = status
             if status == "running" and not task.get("started_at"):
                 task["started_at"] = datetime.now().isoformat()
@@ -145,10 +144,13 @@ class TaskStore:
                 task["result"] = result
             if error:
                 task["error"] = error
+            self._db.save_task(task)
 
     def update_progress(self, task_id: str, progress: int) -> None:
-        if task_id in self._tasks:
-            self._tasks[task_id]["progress"] = progress
+        task = self._db.get_task(task_id)
+        if task:
+            task["progress"] = progress
+            self._db.save_task(task)
 
 
 # Global stores
@@ -249,9 +251,22 @@ async def execute_workflow(task_id: str):
 
 
 async def _execute_workflow_async(task_id: str, task: dict):
-    """异步执行工作流"""
-    from ..workflow_engine import workflow_engine, WorkflowStep
+    """异步执行工作流（带结果通知）"""
+    from ..agents.workflow_engine import workflow_engine, WorkflowStep
 
+    # 设置持久化回调：任务完成后自动保存到数据库
+    def persistence_callback(workflow_def, result, initial_state):
+        task_store.update_task_status(
+            task_id,
+            "completed" if result.status == "completed" else "failed",
+            result={"status": result.status, "results": [
+                {"step_id": r.step_id, "success": r.success, "output": r.output, "error": r.error}
+                for r in result.results
+            ]},
+            error=result.error
+        )
+    
+    workflow_engine.set_persistence_callback(persistence_callback)
     task_store.update_task_status(task_id, "running")
 
     try:
