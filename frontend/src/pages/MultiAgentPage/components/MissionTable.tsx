@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Table, Tag, Space, Typography, Badge, Progress, Button, Popconfirm, Tooltip } from 'antd';
-import { PlayCircleOutlined, StopOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlayCircleOutlined, StopOutlined, CheckCircleOutlined, DeleteOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { Mission, AgentRole } from '../types';
 import { PRIORITY_COLORS, STATUS_COLORS } from '../constants';
 
@@ -13,6 +13,7 @@ interface MissionTableProps {
   onStart: (id: string) => void;
   onComplete: (id: string, status: 'completed' | 'failed') => void;
   onDelete: (id: string) => void;
+  onViewDetails?: (mission: Mission) => void;
 }
 
 export const MissionTable = memo(function MissionTable({
@@ -22,6 +23,7 @@ export const MissionTable = memo(function MissionTable({
   onStart,
   onComplete,
   onDelete,
+  onViewDetails,
 }: MissionTableProps) {
   const columns = [
     {
@@ -80,7 +82,7 @@ export const MissionTable = memo(function MissionTable({
     {
       title: '操作',
       key: 'action',
-      width: 160,
+      width: 200,
       render: (_: any, record: Mission) => (
         <Space>
           {record.status === 'pending' && (
@@ -117,6 +119,16 @@ export const MissionTable = memo(function MissionTable({
             <Popconfirm title="确定删除？" onConfirm={() => onDelete(record.id)}>
               <Button type="text" size="small" danger icon={<DeleteOutlined />} />
             </Popconfirm>
+          )}
+          {onViewDetails && (
+            <Tooltip title="查看详情">
+              <Button
+                type="text"
+                size="small"
+                icon={<InfoCircleOutlined />}
+                onClick={() => onViewDetails(record)}
+              />
+            </Tooltip>
           )}
         </Space>
       ),

@@ -111,6 +111,76 @@ export const PRESET_TOOLS = [
   'message', 'edit', 'move', 'delete',
 ];
 
+// ==================== Mission Execution Steps ====================
+
+export type StepStatus = 'wait' | 'process' | 'finish' | 'error';
+export type StepItem = { title: string; status: StepStatus };
+
+export const EXECUTION_STEP_TITLES = [
+  '任务下发',
+  '情报收集',
+  '态势分析',
+  '战术规划',
+  '作战执行',
+  '结果汇报',
+];
+
+export const getMissionExecutionSteps = (missionStatus: string): StepItem[] => {
+  const activeStep = ['pending', 'active', 'running', 'analyzing', 'planning', 'executing', 'coordinating', 'reporting', 'completed'].indexOf(missionStatus);
+  
+  if (missionStatus === 'failed' || missionStatus === 'aborted') {
+    return EXECUTION_STEP_TITLES.map((title, index) => ({
+      title,
+      status: (index === activeStep ? 'error' : index < activeStep ? 'finish' : 'wait') as StepStatus,
+    }));
+  }
+  
+  if (missionStatus === 'completed') {
+    return EXECUTION_STEP_TITLES.map((title) => ({
+      title,
+      status: 'finish' as StepStatus,
+    }));
+  }
+  
+  return EXECUTION_STEP_TITLES.map((title, index) => ({
+    title,
+    status: (index < activeStep ? 'finish' : index === activeStep ? 'process' : 'wait') as StepStatus,
+  }));
+};
+
+// Fix: rename the typo variable
+const EXECUTION_STEP_STATUS_MAP: Record<string, number> = {
+  pending: 0,
+  active: 0,
+  running: 1,
+  analyzing: 2,
+  planning: 3,
+  executing: 4,
+  coordinating: 4,
+  reporting: 5,
+  completed: 6,
+  failed: -1,
+  aborted: -1,
+};
+
+export const getStepIndexFromStatus = (status: string): number => {
+  return EXECUTION_STEP_STATUS_MAP[status] ?? 0;
+};
+
+export const MISSION_TYPE_OPTIONS = [
+  { value: 'defense', label: '防御作战' },
+  { value: 'offense', label: '进攻作战' },
+  { value: 'reconnaissance', label: '侦察任务' },
+  { value: 'support', label: '支援任务' },
+];
+
+export const EVENT_TYPE_OPTIONS = [
+  { value: 'all', label: '全部' },
+  { value: 'mission', label: '任务事件' },
+  { value: 'agent', label: 'Agent事件' },
+  { value: 'team', label: '团队事件' },
+];
+
 export const DEFAULT_AGENT_CAPABILITIES: Record<string, import('./types').AgentCapability> = {
   commander: {
     llm: { provider: 'openai', model: 'gpt-4o' },

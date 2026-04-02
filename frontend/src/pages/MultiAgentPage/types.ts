@@ -13,6 +13,24 @@ export interface AgentRole {
   current_task?: string;
 }
 
+export interface ReasoningStep {
+  step_id: string;
+  action: string;
+  input_data?: any;
+  output_data?: any;
+  confidence?: number;
+  evidence?: string[];
+  timestamp?: string;
+}
+
+export interface MissionResult {
+  summary?: string;
+  reasoning_chain?: ReasoningStep[];
+  data?: any;
+  confidence?: number;
+  execution_time_ms?: number;
+}
+
 export interface Mission {
   id: string;
   objective: string;
@@ -23,11 +41,14 @@ export interface Mission {
   completed_at?: string;
   result?: string;
   progress: number;
+  // Extended fields from military-agent sync
+  mission_type?: string;
+  result_detail?: MissionResult;
 }
 
 export interface TeamEvent {
   event_id: string;
-  event_type: 'mission_assigned' | 'mission_completed' | 'agent_status_change' | 'message';
+  event_type: 'mission_assigned' | 'mission_completed' | 'mission_failed' | 'agent_status_change' | 'agent_alert' | 'team_update' | 'message' | 'mission_update';
   source_agent: string;
   data: any;
   timestamp: string;

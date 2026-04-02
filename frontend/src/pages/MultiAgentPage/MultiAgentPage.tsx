@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Card, Tabs, Button, Space, Typography, Tag, Select, Input, Modal, message,
   Avatar, Row, Col, Empty, Switch, Progress, Drawer, List, Divider,
@@ -8,12 +8,13 @@ import {
   EyeOutlined, ThunderboltOutlined, AimOutlined,
   ShareAltOutlined,
   MonitorOutlined, ArrowRightOutlined, SettingOutlined, ExperimentOutlined,
-  BranchesOutlined,
+  BranchesOutlined, HistoryOutlined,
 } from '@ant-design/icons';
 
 import {
   AgentCard, TeamChat, MissionTable, WorkflowTaskTable,
   StatsCards, StepCard, PageHeader, ProtocolConfig, AgentCapabilityPanel,
+  MissionResultDrawer, EventTimeline, MissionHistoryList,
 } from './components';
 import { useAgents, useMissions, useWorkflow, useTeams, useCollaboration } from './hooks';
 import {
@@ -21,7 +22,7 @@ import {
   WORKFLOW_TYPE_OPTIONS, STEP_TYPE_OPTIONS, DEFAULT_AGENT_CAPABILITIES,
   inputStyle, selectStyle, getModelsByProvider,
 } from './constants';
-import { WorkflowStep, ConditionRule, TeamAgent, AgentCapability } from './types';
+import { WorkflowStep, ConditionRule, TeamAgent, AgentCapability, Mission, TeamEvent } from './types';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -73,6 +74,16 @@ export function MultiAgentPage() {
   const [conditionRules, setConditionRules] = useState<ConditionRule[]>([]);
   const [editingCondition, setEditingCondition] = useState<ConditionRule | null>(null);
   const [conditionDrawerVisible, setConditionDrawerVisible] = useState(false);
+
+  // Mission Result Drawer
+  const [resultDrawerVisible, setResultDrawerVisible] = useState(false);
+  const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
+
+  // Events (simulated real-time feed - for future WebSocket integration)
+  const [events] = useState<TeamEvent[]>([]);
+  const [wsConnected] = useState(false);
+  const eventsRef = useRef(events);
+  eventsRef.current = events;
 
   // ==================== Effects ====================
   useEffect(() => {
@@ -156,6 +167,11 @@ export function MultiAgentPage() {
       setCreateMissionModalVisible(false);
     }
   }, [newMission, missionsHook]);
+
+  const handleViewMissionDetails = useCallback((mission: Mission) => {
+    setSelectedMission(mission);
+    setResultDrawerVisible(true);
+  }, []);
 
   const handleAddTeamAgent = useCallback(() => {
     const agent: TeamAgent = {
@@ -367,6 +383,7 @@ export function MultiAgentPage() {
                   onStart={handleStartMission}
                   onComplete={handleCompleteMission}
                   onDelete={missionsHook.deleteMission}
+                  onViewDetails={handleViewMissionDetails}
                 />
               ),
             },
@@ -814,6 +831,27 @@ export function MultiAgentPage() {
               ),
             },
 
+            // ==================== Execution History Tab ====================
+            {
+              key: 'mission-history',
+              label: <span><HistoryOutlined /> 执行历史</span>,
+              children: (
+                <MissionHistoryList
+                  missions={missionsHook.missions}
+                  onViewDetails={handleViewMissionDetails}
+                />
+              ),
+            },
+
+            // ==================== Event Timeline Tab ====================
+            {
+              key: 'event-timeline',
+              label: <span><MonitorOutlined /> 事件监控</span>,
+              children: (
+                <EventTimeline events={events} connected={wsConnected} />
+              ),
+            },
+
             // ==================== Collaboration Protocol Tab ====================
             {
               key: 'protocol-config',
@@ -1186,6 +1224,13 @@ export function MultiAgentPage() {
           </>
         )}
       </Drawer>
+
+      {/* Mission Result Drawer */}
+      <MissionResultDrawer
+        mission={selectedMission}
+        visible={resultDrawerVisible}
+        onClose={() => setResultDrawerVisible(false)}
+      />
     </div>
   );
 }
