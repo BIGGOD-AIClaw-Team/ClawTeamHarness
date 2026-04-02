@@ -98,6 +98,19 @@ export interface AgentCapability {
   prompt: string;
 }
 
+export interface DynamicAgent {
+  id: string;
+  parentId: string;
+  isTemporary: boolean;
+  lifespan: 'task' | 'session' | 'manual';
+  autoDestroy: boolean;
+  name: string;
+  role: string;
+  description: string;
+  createdAt: string;
+  expiresAt?: string;
+}
+
 export interface CollaborationConfig {
   mode: 'file' | 'protocol' | 'hybrid';
   fileBaseDir: string;

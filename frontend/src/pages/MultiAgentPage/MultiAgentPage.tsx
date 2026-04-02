@@ -12,7 +12,7 @@ import {
 } from '@ant-design/icons';
 
 import {
-  AgentCard, TeamChat, MissionTable, WorkflowTaskTable,
+  AgentCard, AgentConfigModal, TeamChat, MissionTable, WorkflowTaskTable,
   StatsCards, StepCard, PageHeader, ProtocolConfig, AgentCapabilityPanel,
   MissionResultDrawer, EventTimeline, MissionHistoryList,
 } from './components';
@@ -69,6 +69,9 @@ export function MultiAgentPage() {
   // Agent Capability
   const [agentCapabilities, setAgentCapabilities] = useState<Record<string, AgentCapability>>(DEFAULT_AGENT_CAPABILITIES);
   const [selectedAgentRole, setSelectedAgentRole] = useState<string | null>(null);
+
+  // Agent Config Modal
+  const [agentConfigModalVisible, setAgentConfigModalVisible] = useState(false);
 
   // Task Orchestration
   const [orchestrationActiveTab, setOrchestrationActiveTab] = useState<string>('steps');
@@ -301,6 +304,16 @@ export function MultiAgentPage() {
     message.success(`${agent?.name || role} 配置已保存`);
   }, [agentsHook.agents]);
 
+  const handleOpenAgentConfig = useCallback((role: string) => {
+    setSelectedAgentRole(role);
+    setAgentConfigModalVisible(true);
+  }, []);
+
+  const handleSaveAgentConfig = useCallback((role: string, cap: AgentCapability) => {
+    setAgentCapabilities(prev => ({ ...prev, [role]: cap }));
+    handleSaveAgentCapability(role);
+  }, [handleSaveAgentCapability]);
+
   const handleAddConditionRule = useCallback(() => {
     const rule: ConditionRule = {
       id: generateId(),
@@ -371,7 +384,7 @@ export function MultiAgentPage() {
                           key={agent.id}
                           agent={agent}
                           onToggle={agentsHook.toggleAgent}
-                          onConfig={setSelectedAgentRole}
+                          onConfig={handleOpenAgentConfig}
                         />
                       ))}
                     </div>
@@ -1244,6 +1257,15 @@ export function MultiAgentPage() {
           </>
         )}
       </Drawer>
+
+      {/* Agent Config Modal */}
+      <AgentConfigModal
+        visible={agentConfigModalVisible}
+        agent={selectedAgentRole ? agentsHook.agents.find(a => a.role === selectedAgentRole) || null : null}
+        capabilities={agentCapabilities}
+        onClose={() => setAgentConfigModalVisible(false)}
+        onSave={handleSaveAgentConfig}
+      />
 
       {/* Mission Result Drawer */}
       <MissionResultDrawer

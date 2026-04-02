@@ -1,4 +1,5 @@
 export { AgentCard } from './AgentCard';
+export { AgentConfigModal } from './AgentConfigModal';
 export { TeamChat } from './TeamChat';
 export { MissionTable } from './MissionTable';
 export { WorkflowTaskTable } from './WorkflowTaskTable';
