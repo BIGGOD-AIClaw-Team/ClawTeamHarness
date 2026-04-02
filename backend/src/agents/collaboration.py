@@ -11,6 +11,9 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+from .protocols.file_lock import FileLock
+from .state_machine import TaskStateMachine, get_state_machine
+
 
 class Task(BaseModel):
     """任务模型"""
@@ -67,10 +70,11 @@ class WorkflowResult(BaseModel):
 
 
 class CollaborationEngine:
-    """多Agent协同引擎"""
+    """多Agent协同引擎（File-based模式）"""
 
     def __init__(self, base_workspace: str = "/tmp/agent_workspace"):
         self.base_workspace = Path(base_workspace)
+        self._state_machine = get_state_machine()
         self._ensure_workspace()
 
     def _ensure_workspace(self) -> None:
@@ -105,7 +109,7 @@ class CollaborationEngine:
             # 1. 创建任务目录
             task_dir = self._get_task_dir(task, assignee)
             
-            # 2. 写入任务简报
+            # 2. 写入任务简报（带文件锁）
             briefing = {
                 "task_id": task.id,
                 "task_name": task.name,
@@ -121,18 +125,35 @@ class CollaborationEngine:
             }
             
             briefing_path = task_dir / "task_briefing.json"
-            with open(briefing_path, "w", encoding="utf-8") as f:
-                json.dump(briefing, f, ensure_ascii=False, indent=2)
+            briefing_lock = FileLock(briefing_path)
+            briefing_lock.acquire()
+            try:
+                with open(briefing_path, "w", encoding="utf-8") as f:
+                    json.dump(briefing, f, ensure_ascii=False, indent=2)
+            finally:
+                briefing_lock.release()
             
-            # 3. 创建结果文件占位
+            # 3. 创建结果文件占位（带文件锁+状态机）
             result_path = task_dir / "task_result.json"
-            with open(result_path, "w", encoding="utf-8") as f:
-                json.dump({"status": "pending"}, f)
+            result_lock = FileLock(result_path)
+            result_lock.acquire()
+            try:
+                result_data = {
+                    "status": self._state_machine.transition("pending", "assign"),
+                    "task_id": task.id,
+                    "agent_id": assignee.id,
+                    "created_at": datetime.now().isoformat(),
+                }
+                with open(result_path, "w", encoding="utf-8") as f:
+                    json.dump(result_data, f, ensure_ascii=False, indent=2)
+            finally:
+                result_lock.release()
             
             result.output = {
                 "task_dir": str(task_dir),
                 "briefing_path": str(briefing_path),
                 "result_path": str(result_path),
+                "state": "assigned",
             }
             
         except Exception as e:
