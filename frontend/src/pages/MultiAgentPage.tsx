@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Card, Tabs, Button, Space, Typography, Tag, Select, Input, Modal, message,
   Avatar,  Statistic, Row, Col, Popconfirm, Table, Empty, Badge,
-  Tooltip, Switch, Progress, Drawer, List, Divider,
+  Tooltip, Switch, Progress, Drawer, List, Divider, Radio,
 } from 'antd';
 import {
   TeamOutlined, RobotOutlined, SendOutlined, PlusOutlined, DeleteOutlined,
@@ -10,7 +10,8 @@ import {
   SyncOutlined,
   MessageOutlined, EyeOutlined, ThunderboltOutlined, AimOutlined,
   AlertOutlined, ShareAltOutlined,
-  MonitorOutlined, ArrowRightOutlined,
+  MonitorOutlined, ArrowRightOutlined, SettingOutlined, ExperimentOutlined,
+  UpOutlined, DownOutlined, BranchesOutlined,
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -87,6 +88,28 @@ interface WorkflowTask {
   progress: number;
   error?: string;
   created_at: string;
+}
+
+interface AgentCapability {
+  llm: { provider: string; model: string };
+  skills: string[];
+  tools: string[];
+  prompt: string;
+}
+
+interface CollaborationConfig {
+  mode: 'file' | 'protocol' | 'hybrid';
+  fileBaseDir: string;
+  wsEndpoint: string;
+}
+
+interface ConditionRule {
+  id: string;
+  field: string;
+  operator: '==' | '!=' | '>' | '<' | '>=' | '<=' | 'contains' | 'not_contains';
+  value: string;
+  thenAgentId?: string;
+  elseAgentId?: string;
 }
 
 // ==================== Constants ====================
@@ -210,6 +233,94 @@ const STEP_TYPE_OPTIONS = [
   { value: 'output', label: '📤 输出' },
 ];
 
+const LLM_PROVIDERS = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'google', label: 'Google Gemini' },
+  { value: 'azure', label: 'Azure OpenAI' },
+  { value: 'ollama', label: 'Ollama (本地)' },
+  { value: 'minimax', label: 'MiniMax' },
+];
+
+const OPENAI_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'];
+const ANTHROPIC_MODELS = ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'];
+const GOOGLE_MODELS = ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+const AZURE_MODELS = ['gpt-4o', 'gpt-4o-mini', 'gpt-35-turbo'];
+const OLLAMA_MODELS = ['llama3.2', 'qwen2.5', 'deepseek-v2'];
+const MINIMAX_MODELS = ['MiniMax-M2', 'MiniMax-M2-Mini', 'abab6.5s'];
+
+const getModelsByProvider = (provider: string): { value: string; label: string }[] => {
+  const map: Record<string, string[]> = {
+    openai: OPENAI_MODELS,
+    anthropic: ANTHROPIC_MODELS,
+    google: GOOGLE_MODELS,
+    azure: AZURE_MODELS,
+    ollama: OLLAMA_MODELS,
+    minimax: MINIMAX_MODELS,
+  };
+  return (map[provider] || []).map(m => ({ value: m, label: m }));
+};
+
+const PRESET_SKILLS = [
+  'github', 'weather', 'web-search', 'web-fetch', 'document-parsers',
+  'apple-reminders', 'feishu-doc', 'feishu-drive', 'feishu-perm', 'feishu-wiki',
+  'ima-note', 'healthcheck', 'remotion-best-practices',
+];
+
+const PRESET_TOOLS = [
+  'read', 'write', 'edit', 'exec', 'process', 'web_search', 'web_fetch', 'image',
+  'message', 'edit', 'move', 'delete',
+];
+
+// ==================== Step Card Component ====================
+
+interface StepCardProps {
+  step: WorkflowStep;
+  index: number;
+  onEdit: () => void;
+  onDelete: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  isFirst: boolean;
+  isLast: boolean;
+  allAgents: AgentRole[];
+}
+
+function StepCard({ step, index, onEdit, onDelete, onMoveUp, onMoveDown, isFirst, isLast, allAgents }: StepCardProps) {
+  return (
+    <Card
+      size="small"
+      style={{ background: 'rgba(0, 20, 40, 0.4)', border: '1px solid rgba(0, 212, 255, 0.15)', marginBottom: 8 }}
+      bodyStyle={{ padding: '8px 12px' }}
+    >
+      <Row gutter={[8, 8]} align="middle">
+        <Col>
+          <Tag style={{ margin: 0 }}>{index + 1}</Tag>
+        </Col>
+        <Col flex="auto">
+          <Space>
+            <Text style={{ color: '#e0e6ed', fontSize: 13 }}>{step.name}</Text>
+            <Tag style={{ margin: 0, fontSize: 10 }}>{step.step_type}</Tag>
+            {step.step_type === 'agent' && step.agent_id && (
+              <Tag color="blue" style={{ margin: 0, fontSize: 10 }}>
+                {allAgents.find(a => a.id === step.agent_id)?.name || step.agent_id}
+              </Tag>
+            )}
+          </Space>
+        </Col>
+        <Col>
+          <Space size={4}>
+            <Tooltip title="上移"><Button size="small" type="text" icon={<UpOutlined />} disabled={isFirst} onClick={onMoveUp} /></Tooltip>
+            <Tooltip title="下移"><Button size="small" type="text" icon={<DownOutlined />} disabled={isLast} onClick={onMoveDown} /></Tooltip>
+            <Tooltip title="编辑"><Button size="small" type="link" onClick={onEdit}>编辑</Button></Tooltip>
+            <Tooltip title="删除"><Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={onDelete} /></Tooltip>
+          </Space>
+        </Col>
+      </Row>
+    </Card>
+  );
+}
+
 // ==================== Main Component ====================
 
 export function MultiAgentPage() {
@@ -242,6 +353,58 @@ export function MultiAgentPage() {
   });
   const [editingStep, setEditingStep] = useState<WorkflowStep | null>(null);
   const [stepDrawerVisible, setStepDrawerVisible] = useState(false);
+
+  // Agent Capability State
+  const [agentCapabilities, setAgentCapabilities] = useState<Record<string, AgentCapability>>({
+    commander: {
+      llm: { provider: 'openai', model: 'gpt-4o' },
+      skills: ['github', 'web-search'],
+      tools: ['read', 'write', 'exec'],
+      prompt: '你是一位指挥官，负责统筹协调、任务分配和决策制定。',
+    },
+    analyst: {
+      llm: { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
+      skills: ['web-fetch', 'document-parsers'],
+      tools: ['read', 'web_search', 'web_fetch'],
+      prompt: '你是一位分析师，负责信息收集、数据分析和情报整理。',
+    },
+    planner: {
+      llm: { provider: 'openai', model: 'gpt-4o-mini' },
+      skills: ['github'],
+      tools: ['read', 'write'],
+      prompt: '你是一位规划师，负责计划制定、任务分解和资源调度。',
+    },
+    executor: {
+      llm: { provider: 'google', model: 'gemini-2.0-flash' },
+      skills: ['web-search', 'apple-reminders'],
+      tools: ['read', 'write', 'edit', 'exec'],
+      prompt: '你是一位执行者，负责任务执行、工具调用和结果反馈。',
+    },
+    critic: {
+      llm: { provider: 'anthropic', model: 'claude-3-opus-20240229' },
+      skills: ['healthcheck'],
+      tools: ['read', 'write'],
+      prompt: '你是一位评审员，负责质量把控、结果审查和风险评估。',
+    },
+  });
+  const [agentConfigModalVisible, setAgentConfigModalVisible] = useState(false);
+  const [selectedAgentRole, setSelectedAgentRole] = useState<string | null>(null);
+
+  // Collaboration Protocol Config
+  const [collaborationConfig, setCollaborationConfig] = useState<CollaborationConfig>({
+    mode: 'file',
+    fileBaseDir: '/workspace/tasks',
+    wsEndpoint: 'ws://localhost:8080/ws',
+  });
+
+  // Task Orchestration State (enhanced)
+  const [orchestrationActiveTab, setOrchestrationActiveTab] = useState<string>('steps');
+  const [conditionRules, setConditionRules] = useState<ConditionRule[]>([]);
+  const [editingCondition, setEditingCondition] = useState<ConditionRule | null>(null);
+  const [conditionDrawerVisible, setConditionDrawerVisible] = useState(false);
+
+  // DnD sensors (drag-and-drop disabled - @dnd-kit not installed)
+  // const sensors = useSensors(...)
 
   // Task Monitor State
   const [_pollInterval, setPollingInterval] = useState<ReturnType<typeof setInterval> | null>(null);
@@ -551,6 +714,107 @@ export function MultiAgentPage() {
     } catch (e) {
       message.error('执行工作流失败');
     }
+  };
+
+  // ==================== Agent Capability Handlers ====================
+
+  const handleOpenAgentConfig = (role: string) => {
+    setSelectedAgentRole(role);
+    setAgentConfigModalVisible(true);
+  };
+
+  const handleSaveAgentCapability = () => {
+    if (!selectedAgentRole) return;
+    message.success(`${agents.find(a => a.role === selectedAgentRole)?.name} 配置已保存`);
+    setAgentConfigModalVisible(false);
+  };
+
+  const getCurrentAgentCapability = (): AgentCapability => {
+    return agentCapabilities[selectedAgentRole || ''] || {
+      llm: { provider: 'openai', model: 'gpt-4o' },
+      skills: [],
+      tools: [],
+      prompt: '',
+    };
+  };
+
+  const handleUpdateAgentCapability = (updates: Partial<AgentCapability>) => {
+    if (!selectedAgentRole) return;
+    setAgentCapabilities(prev => ({
+      ...prev,
+      [selectedAgentRole]: { ...prev[selectedAgentRole], ...updates },
+    }));
+  };
+
+  const handleUpdateLlm = (field: 'provider' | 'model', value: string) => {
+    const cap = getCurrentAgentCapability();
+    if (field === 'provider') {
+      const models = getModelsByProvider(value);
+      handleUpdateAgentCapability({
+        llm: { provider: value, model: models[0]?.value || '' },
+      });
+    } else {
+      handleUpdateAgentCapability({ llm: { ...cap.llm, [field]: value } });
+    }
+  };
+
+  // ==================== Collaboration Config Handlers ====================
+
+  const handleSaveCollaborationConfig = () => {
+    message.success('协商协议配置已保存');
+  };
+
+  // ==================== Task Orchestration Handlers ====================
+
+  const arrayMove = (arr: WorkflowStep[], from: number, to: number): WorkflowStep[] => {
+    const result = [...arr];
+    const [removed] = result.splice(from, 1);
+    result.splice(to, 0, removed);
+    return result;
+  };
+
+  const handleMoveStep = (stepId: string, direction: 'up' | 'down', steps: WorkflowStep[], setSteps: (steps: WorkflowStep[]) => void) => {
+    const idx = steps.findIndex(s => s.id === stepId);
+    if (direction === 'up' && idx > 0) {
+      setSteps(arrayMove(steps, idx, idx - 1));
+    } else if (direction === 'down' && idx < steps.length - 1) {
+      setSteps(arrayMove(steps, idx, idx + 1));
+    }
+  };
+
+  // Condition Rule handlers
+  const handleAddConditionRule = () => {
+    const rule: ConditionRule = {
+      id: generateId(),
+      field: '',
+      operator: '==',
+      value: '',
+    };
+    setConditionRules([...conditionRules, rule]);
+  };
+
+  const handleUpdateConditionRule = (id: string, updates: Partial<ConditionRule>) => {
+    setConditionRules(conditionRules.map(r => r.id === id ? { ...r, ...updates } : r));
+  };
+
+  const handleRemoveConditionRule = (id: string) => {
+    setConditionRules(conditionRules.filter(r => r.id !== id));
+  };
+
+  const handleOpenConditionDrawer = (rule?: ConditionRule) => {
+    setEditingCondition(rule || null);
+    setConditionDrawerVisible(true);
+  };
+
+  const handleSaveConditionRule = () => {
+    if (!editingCondition) return;
+    if (editingCondition.id && conditionRules.find(r => r.id === editingCondition.id)) {
+      handleUpdateConditionRule(editingCondition.id, editingCondition);
+    } else {
+      setConditionRules([...conditionRules, { ...editingCondition, id: generateId() }]);
+    }
+    setConditionDrawerVisible(false);
+    setEditingCondition(null);
   };
 
   // ==================== Table Columns ====================
@@ -1139,6 +1403,483 @@ export function MultiAgentPage() {
                 </Row>
               ),
             },
+
+            // ==================== Agent Capability Tab ====================
+            {
+              key: 'agent-capability',
+              label: <span><SettingOutlined /> Agent 能力</span>,
+              children: (
+                <Row gutter={[16, 16]}>
+                  <Col xs={24} lg={8}>
+                    <Card
+                      size="small"
+                      title="🤖 Agent 列表"
+                      style={{ background: 'rgba(0, 20, 40, 0.6)' }}
+                    >
+                      <List
+                        dataSource={agents}
+                        renderItem={(agent) => (
+                          <List.Item
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => handleOpenAgentConfig(agent.role)}
+                            actions={[
+                              <Button key="config" type="link" size="small" icon={<SettingOutlined />}>配置</Button>,
+                            ]}
+                          >
+                            <List.Item.Meta
+                              avatar={<Avatar style={{ background: agent.color + '20', border: `2px solid ${agent.color}`, color: agent.color }} icon={agent.icon} />}
+                              title={<Text style={{ color: '#e0e6ed' }}>{agent.name}</Text>}
+                              description={<Text style={{ color: '#888', fontSize: 11 }}>{agent.description}</Text>}
+                            />
+                          </List.Item>
+                        )}
+                      />
+                    </Card>
+                  </Col>
+                  <Col xs={24} lg={16}>
+                    <Card
+                      size="small"
+                      title="⚙️ 能力配置详情"
+                      style={{ background: 'rgba(0, 20, 40, 0.6)' }}
+                    >
+                      {!selectedAgentRole ? (
+                        <Empty description="点击左侧 Agent 进行配置" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                      ) : (
+                        <div>
+                          <Row gutter={[16, 16]}>
+                            <Col span={12}>
+                              <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>LLM Provider</Text>
+                              <Select
+                                style={{ width: '100%' }}
+                                value={agentCapabilities[selectedAgentRole]?.llm.provider}
+                                onChange={v => handleUpdateLlm('provider', v)}
+                                options={LLM_PROVIDERS}
+                              />
+                            </Col>
+                            <Col span={12}>
+                              <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>Model</Text>
+                              <Select
+                                style={{ width: '100%' }}
+                                value={agentCapabilities[selectedAgentRole]?.llm.model}
+                                onChange={v => handleUpdateLlm('model', v)}
+                                options={getModelsByProvider(agentCapabilities[selectedAgentRole]?.llm.provider || 'openai')}
+                              />
+                            </Col>
+                          </Row>
+                          <div style={{ marginTop: 16 }}>
+                            <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>Skills</Text>
+                            <Select
+                              mode="multiple"
+                              style={{ width: '100%' }}
+                              value={agentCapabilities[selectedAgentRole]?.skills || []}
+                              onChange={v => handleUpdateAgentCapability({ skills: v })}
+                              options={PRESET_SKILLS.map(s => ({ value: s, label: s }))}
+                              placeholder="选择技能..."
+                            />
+                          </div>
+                          <div style={{ marginTop: 16 }}>
+                            <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>Tools</Text>
+                            <Select
+                              mode="multiple"
+                              style={{ width: '100%' }}
+                              value={agentCapabilities[selectedAgentRole]?.tools || []}
+                              onChange={v => handleUpdateAgentCapability({ tools: v })}
+                              options={PRESET_TOOLS.map(t => ({ value: t, label: t }))}
+                              placeholder="选择工具..."
+                            />
+                          </div>
+                          <div style={{ marginTop: 16 }}>
+                            <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>System Prompt</Text>
+                            <TextArea
+                              style={{ ...inputStyle, resize: 'none' }}
+                              rows={4}
+                              value={agentCapabilities[selectedAgentRole]?.prompt || ''}
+                              onChange={e => handleUpdateAgentCapability({ prompt: e.target.value })}
+                              placeholder="输入 Agent 系统提示词..."
+                            />
+                          </div>
+                          <div style={{ marginTop: 16 }}>
+                            <Button type="primary" onClick={handleSaveAgentCapability}>保存配置</Button>
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                    <Card
+                      size="small"
+                      title="📋 快速配置模板"
+                      style={{ background: 'rgba(0, 20, 40, 0.6)', marginTop: 16 }}
+                    >
+                      <Space wrap>
+                        {agents.map(agent => (
+                          <Tag
+                            key={agent.role}
+                            style={{ padding: '4px 12px', cursor: 'pointer' }}
+                            onClick={() => handleOpenAgentConfig(agent.role)}
+                          >
+                            {agent.icon} {agent.name}
+                          </Tag>
+                        ))}
+                      </Space>
+                    </Card>
+                  </Col>
+                </Row>
+              ),
+            },
+
+            // ==================== Task Orchestration Tab (Enhanced) ====================
+            {
+              key: 'task-orchestration',
+              label: <span><BranchesOutlined /> 任务编排</span>,
+              children: (
+                <div>
+                  <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Tabs
+                      activeKey={orchestrationActiveTab}
+                      onChange={setOrchestrationActiveTab}
+                      items={[
+                        { key: 'steps', label: '📝 步骤编排' },
+                        { key: 'conditions', label: '🔀 条件规则' },
+                      ]}
+                      style={{ marginBottom: 0 }}
+                    />
+                    <Space>
+                      <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateTaskModalVisible(true)}>
+                        新建工作流
+                      </Button>
+                    </Space>
+                  </div>
+
+                  {orchestrationActiveTab === 'steps' && (
+                    <Row gutter={[16, 16]}>
+                      <Col xs={24} lg={16}>
+                        <Card
+                          size="small"
+                          title="🗺️ 工作流步骤（拖拽排序）"
+                          style={{ background: 'rgba(0, 20, 40, 0.6)' }}
+                          extra={
+                            <Space>
+                              <Select
+                                style={{ width: 150 }}
+                                placeholder="执行类型"
+                                value={newTaskConfig.workflow_type}
+                                onChange={v => setNewTaskConfig({ ...newTaskConfig, workflow_type: v })}
+                                options={WORKFLOW_TYPE_OPTIONS}
+                              />
+                              <Button size="small" icon={<PlusOutlined />} onClick={handleAddStep}>添加步骤</Button>
+                            </Space>
+                          }
+                        >
+                          {newTaskConfig.steps.length === 0 ? (
+                            <Empty description="暂无步骤，点击添加开始编排" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                          ) : (
+                            newTaskConfig.steps.map((step, idx) => (
+                              <StepCard
+                                key={step.id}
+                                step={step}
+                                index={idx}
+                                isFirst={idx === 0}
+                                isLast={idx === newTaskConfig.steps.length - 1}
+                                allAgents={agents}
+                                onEdit={() => handleOpenStepDrawer(step)}
+                                onDelete={() => handleRemoveStep(step.id)}
+                                onMoveUp={() => handleMoveStep(step.id, 'up', newTaskConfig.steps, (s) => setNewTaskConfig(prev => ({ ...prev, steps: s })))}
+                                onMoveDown={() => handleMoveStep(step.id, 'down', newTaskConfig.steps, (s) => setNewTaskConfig(prev => ({ ...prev, steps: s })))}
+                              />
+                            ))
+                          )}
+                        </Card>
+                        {newTaskConfig.workflow_type === 'conditional' && (
+                          <Card
+                            size="small"
+                            title="🔀 条件表达式"
+                            style={{ background: 'rgba(0, 20, 40, 0.6)', marginTop: 16 }}
+                            extra={<Button size="small" icon={<PlusOutlined />} onClick={handleAddConditionRule}>添加规则</Button>}
+                          >
+                            {conditionRules.length === 0 ? (
+                              <Empty description="条件执行模式：点击添加条件规则" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                            ) : (
+                              <List
+                                dataSource={conditionRules}
+                                renderItem={(rule) => (
+                                  <List.Item
+                                    actions={[
+                                      <Button key="edit" type="link" size="small" onClick={() => handleOpenConditionDrawer(rule)}>编辑</Button>,
+                                      <Button key="del" type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => handleRemoveConditionRule(rule.id)} />,
+                                    ]}
+                                  >
+                                    <List.Item.Meta
+                                      title={<Text style={{ color: '#e0e6ed' }}>{rule.field || '未设置字段'} {rule.operator} {rule.value || '?'}</Text>}
+                                      description={
+                                        <Space>
+                                          {rule.thenAgentId && <Tag color="green">then: {agents.find(a => a.id === rule.thenAgentId)?.name || rule.thenAgentId}</Tag>}
+                                          {rule.elseAgentId && <Tag color="red">else: {agents.find(a => a.id === rule.elseAgentId)?.name || rule.elseAgentId}</Tag>}
+                                        </Space>
+                                      }
+                                    />
+                                  </List.Item>
+                                )}
+                              />
+                            )}
+                          </Card>
+                        )}
+                      </Col>
+                      <Col xs={24} lg={8}>
+                        <Card
+                          size="small"
+                          title="🤖 Agent 选择器"
+                          style={{ background: 'rgba(0, 20, 40, 0.6)' }}
+                        >
+                          <List
+                            dataSource={agents.filter(a => a.enabled)}
+                            renderItem={(agent) => (
+                              <List.Item>
+                                <List.Item.Meta
+                                  avatar={<Avatar size="small" style={{ background: agent.color + '20', border: `1px solid ${agent.color}`, color: agent.color }} icon={agent.icon} />}
+                                  title={<Text style={{ color: '#e0e6ed', fontSize: 12 }}>{agent.name}</Text>}
+                                  description={<Text style={{ color: '#888', fontSize: 10 }}>{agent.role}</Text>}
+                                />
+                              </List.Item>
+                            )}
+                          />
+                        </Card>
+                        <Card
+                          size="small"
+                          title="📊 当前工作流信息"
+                          style={{ background: 'rgba(0, 20, 40, 0.6)', marginTop: 16 }}
+                        >
+                          <Row gutter={[8, 8]}>
+                            <Col span={12}><Text style={{ color: '#888', fontSize: 11 }}>执行类型</Text></Col>
+                            <Col span={12}>
+                              <Tag>{WORKFLOW_TYPE_OPTIONS.find(o => o.value === newTaskConfig.workflow_type)?.label || newTaskConfig.workflow_type}</Tag>
+                            </Col>
+                            <Col span={12}><Text style={{ color: '#888', fontSize: 11 }}>步骤数量</Text></Col>
+                            <Col span={12}><Text style={{ color: '#00d4ff', fontSize: 12 }}>{newTaskConfig.steps.length}</Text></Col>
+                            <Col span={12}><Text style={{ color: '#888', fontSize: 11 }}>任务名称</Text></Col>
+                            <Col span={12}><Text style={{ color: '#e0e6ed', fontSize: 12 }}>{newTaskConfig.name || '未命名'}</Text></Col>
+                            <Col span={12}><Text style={{ color: '#888', fontSize: 11 }}>条件规则</Text></Col>
+                            <Col span={12}><Text style={{ color: '#f59e0b', fontSize: 12 }}>{conditionRules.length} 条</Text></Col>
+                          </Row>
+                          <Divider style={{ margin: '8px 0', borderColor: 'rgba(0, 212, 255, 0.1)' }} />
+                          <Button type="primary" block onClick={handleCreateWorkflowTask} disabled={!newTaskConfig.name || newTaskConfig.steps.length === 0}>
+                            保存工作流
+                          </Button>
+                        </Card>
+                        <Card
+                          size="small"
+                          title="💡 编排提示"
+                          style={{ background: 'rgba(0, 20, 40, 0.6)', marginTop: 16 }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <Text style={{ color: '#888', fontSize: 11 }}>• 顺序执行：步骤按编号顺序执行</Text>
+                            <Text style={{ color: '#888', fontSize: 11 }}>• 并行执行：所有步骤同时触发</Text>
+                            <Text style={{ color: '#888', fontSize: 11 }}>• 条件执行：根据规则选择分支</Text>
+                            <Text style={{ color: '#888', fontSize: 11 }}>• 拖拽步骤可调整执行顺序</Text>
+                            <Text style={{ color: '#888', fontSize: 11 }}>• Agent 步骤需指定执行 Agent</Text>
+                          </div>
+                        </Card>
+                      </Col>
+                    </Row>
+                  )}
+
+                  {orchestrationActiveTab === 'conditions' && (
+                    <Row gutter={[16, 16]}>
+                      <Col xs={24} lg={16}>
+                        <Card
+                          size="small"
+                          title="🔀 条件规则列表"
+                          style={{ background: 'rgba(0, 20, 40, 0.6)' }}
+                          extra={<Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => { setEditingCondition({ id: generateId(), field: '', operator: '==', value: '' }); setConditionDrawerVisible(true); }}>添加规则</Button>}
+                        >
+                          {conditionRules.length === 0 ? (
+                            <Empty description="暂无条件规则" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                          ) : (
+                            <List
+                              dataSource={conditionRules}
+                              renderItem={(rule) => (
+                                <List.Item
+                                  actions={[
+                                    <Button key="edit" type="link" size="small" onClick={() => handleOpenConditionDrawer(rule)}>编辑</Button>,
+                                    <Button key="del" type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => handleRemoveConditionRule(rule.id)} />,
+                                  ]}
+                                >
+                                  <List.Item.Meta
+                                    title={<Space>
+                                      <Tag>{rule.field || '?'}</Tag>
+                                      <Tag color="blue">{rule.operator}</Tag>
+                                      <Tag>{rule.value || '?'}</Tag>
+                                    </Space>}
+                                    description={
+                                      <Space size={4}>
+                                        <Text style={{ color: '#888', fontSize: 11 }}>then:</Text>
+                                        <Tag color="green" style={{ margin: 0 }}>{rule.thenAgentId ? agents.find(a => a.id === rule.thenAgentId)?.name : '未指定'}</Tag>
+                                        <Text style={{ color: '#888', fontSize: 11 }}>else:</Text>
+                                        <Tag color="red" style={{ margin: 0 }}>{rule.elseAgentId ? agents.find(a => a.id === rule.elseAgentId)?.name : '未指定'}</Tag>
+                                      </Space>
+                                    }
+                                  />
+                                </List.Item>
+                              )}
+                            />
+                          )}
+                        </Card>
+                      </Col>
+                      <Col xs={24} lg={8}>
+                        <Card
+                          size="small"
+                          title="📖 条件表达式语法"
+                          style={{ background: 'rgba(0, 20, 40, 0.6)' }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div>
+                              <Text strong style={{ color: '#e0e6ed', fontSize: 12 }}>字段 (field)</Text>
+                              <Text style={{ color: '#888', fontSize: 11, display: 'block' }}>任务属性，如: status, progress, result</Text>
+                            </div>
+                            <div>
+                              <Text strong style={{ color: '#e0e6ed', fontSize: 12 }}>操作符</Text>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                {['==', '!=', '>', '<', '>=', '<=', 'contains', 'not_contains'].map(op => (
+                                  <Tag key={op} style={{ fontSize: 10 }}>{op}</Tag>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <Text strong style={{ color: '#e0e6ed', fontSize: 12 }}>示例</Text>
+                              <Text style={{ color: '#888', fontSize: 11, display: 'block' }}>{`status == 'completed'`}</Text>
+                              <Text style={{ color: '#888', fontSize: 11, display: 'block' }}>{`progress > 50`}</Text>
+                              <Text style={{ color: '#888', fontSize: 11, display: 'block' }}>{`result contains 'success'`}</Text>
+                            </div>
+                          </div>
+                        </Card>
+                      </Col>
+                    </Row>
+                  )}
+                </div>
+              ),
+            },
+
+            // ==================== Collaboration Protocol Tab ====================
+            {
+              key: 'protocol-config',
+              label: <span><ExperimentOutlined /> 协商协议</span>,
+              children: (
+                <Row gutter={[16, 16]}>
+                  <Col xs={24} lg={12}>
+                    <Card
+                      size="small"
+                      title="🔧 协议模式选择"
+                      style={{ background: 'rgba(0, 20, 40, 0.6)' }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {[
+                          { value: 'file', label: '📁 文件协议', desc: '通过共享文件系统传递消息和状态' },
+                          { value: 'protocol', label: '🔌 WebSocket 协议', desc: '通过 WebSocket 实时双向通信' },
+                          { value: 'hybrid', label: '🔗 混合模式', desc: '结合文件存储与实时通信的优势' },
+                        ].map(mode => (
+                          <Card
+                            key={mode.value}
+                            size="small"
+                            style={{
+                              cursor: 'pointer',
+                              background: collaborationConfig.mode === mode.value ? 'rgba(0, 212, 255, 0.1)' : 'rgba(0, 0, 0, 0.2)',
+                              border: `1px solid ${collaborationConfig.mode === mode.value ? '#00d4ff' : 'rgba(0, 212, 255, 0.1)'}`,
+                            }}
+                            onClick={() => setCollaborationConfig({ ...collaborationConfig, mode: mode.value as CollaborationConfig['mode'] })}
+                          >
+                            <Space>
+                              <Radio checked={collaborationConfig.mode === mode.value} />
+                              <div>
+                                <Text strong style={{ color: '#e0e6ed', fontSize: 13 }}>{mode.label}</Text>
+                                <Text style={{ color: '#888', fontSize: 11, display: 'block' }}>{mode.desc}</Text>
+                              </div>
+                            </Space>
+                          </Card>
+                        ))}
+                      </div>
+                    </Card>
+                    <Card
+                      size="small"
+                      title="📂 文件协议配置"
+                      style={{ background: 'rgba(0, 20, 40, 0.6)', marginTop: 16 }}
+                    >
+                      <div style={{ marginBottom: 16 }}>
+                        <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>任务目录</Text>
+                        <Input
+                          style={inputStyle}
+                          value={collaborationConfig.fileBaseDir}
+                          onChange={e => setCollaborationConfig({ ...collaborationConfig, fileBaseDir: e.target.value })}
+                          placeholder="/workspace/tasks"
+                          addonBefore="路径"
+                        />
+                      </div>
+                      <Text style={{ color: '#888', fontSize: 11 }}>
+                        文件协议说明：Agent 之间通过共享目录下的 JSON 文件交换消息和状态。每个任务创建一个子目录，包含输入、输出和状态文件。
+                      </Text>
+                    </Card>
+                  </Col>
+                  <Col xs={24} lg={12}>
+                    <Card
+                      size="small"
+                      title="🔌 WebSocket 协议配置"
+                      style={{ background: 'rgba(0, 20, 40, 0.6)' }}
+                    >
+                      <div style={{ marginBottom: 16 }}>
+                        <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>WebSocket 端点</Text>
+                        <Input
+                          style={inputStyle}
+                          value={collaborationConfig.wsEndpoint}
+                          onChange={e => setCollaborationConfig({ ...collaborationConfig, wsEndpoint: e.target.value })}
+                          placeholder="ws://localhost:8080/ws"
+                          addonBefore="WS"
+                        />
+                      </div>
+                      <Text style={{ color: '#888', fontSize: 11 }}>
+                        WebSocket 协议说明：建立 Agent 之间的持久连接，支持实时消息推送和事件通知。适合低延迟协作场景。
+                      </Text>
+                    </Card>
+                    <Card
+                      size="small"
+                      title="🔗 混合模式说明"
+                      style={{ background: 'rgba(0, 20, 40, 0.6)', marginTop: 16 }}
+                    >
+                      <Text style={{ color: '#888', fontSize: 11, display: 'block', marginBottom: 12 }}>
+                        混合模式结合文件存储的持久性和 WebSocket 的实时性：关键状态变更写入文件确保持久化，实时事件通过 WebSocket 推送。
+                      </Text>
+                      <Divider style={{ margin: '8px 0', borderColor: 'rgba(0, 212, 255, 0.1)' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div>
+                          <Text strong style={{ color: '#e0e6ed', fontSize: 12 }}>✓ 文件存储</Text>
+                          <Text style={{ color: '#888', fontSize: 11, display: 'block' }}>任务状态、结果、持久化数据</Text>
+                        </div>
+                        <div>
+                          <Text strong style={{ color: '#e0e6ed', fontSize: 12 }}>✓ WebSocket</Text>
+                          <Text style={{ color: '#888', fontSize: 11, display: 'block' }}>进度更新、事件通知、心跳检测</Text>
+                        </div>
+                      </div>
+                    </Card>
+                    <Card
+                      size="small"
+                      title="📊 当前配置摘要"
+                      style={{ background: 'rgba(0, 20, 40, 0.6)', marginTop: 16 }}
+                    >
+                      <Row gutter={[8, 8]}>
+                        <Col span={12}><Text style={{ color: '#888', fontSize: 11 }}>协议模式</Text></Col>
+                        <Col span={12}>
+                          <Tag color="blue">
+                            {collaborationConfig.mode === 'file' ? '📁 文件协议' : collaborationConfig.mode === 'protocol' ? '🔌 WebSocket' : '🔗 混合模式'}
+                          </Tag>
+                        </Col>
+                        <Col span={12}><Text style={{ color: '#888', fontSize: 11 }}>任务目录</Text></Col>
+                        <Col span={12}><Text style={{ color: '#00d4ff', fontSize: 12 }}>{collaborationConfig.fileBaseDir}</Text></Col>
+                        <Col span={12}><Text style={{ color: '#888', fontSize: 11 }}>WS 端点</Text></Col>
+                        <Col span={12}><Text style={{ color: '#00d4ff', fontSize: 12 }}>{collaborationConfig.wsEndpoint}</Text></Col>
+                      </Row>
+                      <Divider style={{ margin: '8px 0', borderColor: 'rgba(0, 212, 255, 0.1)' }} />
+                      <Button type="primary" block onClick={handleSaveCollaborationConfig}>保存协议配置</Button>
+                    </Card>
+                  </Col>
+                </Row>
+              ),
+            },
           ]}
         />
       </div>
@@ -1188,6 +1929,73 @@ export function MultiAgentPage() {
             options={agents.filter(a => a.enabled).map(a => ({ value: a.role, label: `${a.name}` }))}
           />
         </div>
+      </Modal>
+
+      {/* Agent Capability Modal */}
+      <Modal
+        title={`⚙️ 配置 ${agents.find(a => a.role === selectedAgentRole)?.name || 'Agent'} 能力`}
+        open={agentConfigModalVisible}
+        onCancel={() => setAgentConfigModalVisible(false)}
+        onOk={handleSaveAgentCapability}
+        okText="保存"
+        width={560}
+      >
+        {selectedAgentRole && (
+          <div>
+            <Row gutter={[16, 16]}>
+              <Col span={12}>
+                <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>LLM Provider</Text>
+                <Select
+                  style={{ width: '100%' }}
+                  value={agentCapabilities[selectedAgentRole]?.llm.provider}
+                  onChange={v => handleUpdateLlm('provider', v)}
+                  options={LLM_PROVIDERS}
+                />
+              </Col>
+              <Col span={12}>
+                <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>Model</Text>
+                <Select
+                  style={{ width: '100%' }}
+                  value={agentCapabilities[selectedAgentRole]?.llm.model}
+                  onChange={v => handleUpdateLlm('model', v)}
+                  options={getModelsByProvider(agentCapabilities[selectedAgentRole]?.llm.provider || 'openai')}
+                />
+              </Col>
+            </Row>
+            <div style={{ marginTop: 16 }}>
+              <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>Skills</Text>
+              <Select
+                mode="multiple"
+                style={{ width: '100%' }}
+                value={agentCapabilities[selectedAgentRole]?.skills || []}
+                onChange={v => handleUpdateAgentCapability({ skills: v })}
+                options={PRESET_SKILLS.map(s => ({ value: s, label: s }))}
+                placeholder="选择技能..."
+              />
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>Tools</Text>
+              <Select
+                mode="multiple"
+                style={{ width: '100%' }}
+                value={agentCapabilities[selectedAgentRole]?.tools || []}
+                onChange={v => handleUpdateAgentCapability({ tools: v })}
+                options={PRESET_TOOLS.map(t => ({ value: t, label: t }))}
+                placeholder="选择工具..."
+              />
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>System Prompt</Text>
+              <TextArea
+                style={{ ...inputStyle, resize: 'none' }}
+                rows={4}
+                value={agentCapabilities[selectedAgentRole]?.prompt || ''}
+                onChange={e => handleUpdateAgentCapability({ prompt: e.target.value })}
+                placeholder="输入 Agent 系统提示词..."
+              />
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Create Team Drawer */}
@@ -1386,12 +2194,13 @@ export function MultiAgentPage() {
             </div>
             {editingStep.step_type === 'agent' && (
               <div style={{ marginBottom: 16 }}>
-                <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>Agent ID</Text>
-                <Input
-                  style={inputStyle}
-                  value={editingStep.agent_id || ''}
-                  onChange={e => setEditingStep({ ...editingStep, agent_id: e.target.value })}
-                  placeholder="输入 Agent ID"
+                <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>选择 Agent</Text>
+                <Select
+                  style={{ width: '100%' }}
+                  value={editingStep.agent_id}
+                  onChange={v => setEditingStep({ ...editingStep, agent_id: v })}
+                  options={agents.filter(a => a.enabled).map(a => ({ value: a.id, label: `${a.name} (${a.role})` }))}
+                  placeholder="选择执行 Agent"
                 />
               </div>
             )}
@@ -1406,6 +2215,99 @@ export function MultiAgentPage() {
                 />
               </div>
             )}
+            <div style={{ marginBottom: 16 }}>
+              <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>配置 (JSON)</Text>
+              <TextArea
+                style={{ ...inputStyle, resize: 'none', fontFamily: 'monospace' }}
+                rows={3}
+                value={JSON.stringify(editingStep.config || {}, null, 2)}
+                onChange={e => {
+                  try {
+                    setEditingStep({ ...editingStep, config: JSON.parse(e.target.value) });
+                  } catch {}
+                }}
+                placeholder="{}"
+              />
+            </div>
+          </>
+        )}
+      </Drawer>
+
+      {/* Condition Rule Drawer */}
+      <Drawer
+        title="编辑条件规则"
+        placement="right"
+        width={400}
+        open={conditionDrawerVisible}
+        onClose={() => { setConditionDrawerVisible(false); setEditingCondition(null); }}
+        extra={
+          <Space>
+            <Button onClick={() => { setConditionDrawerVisible(false); setEditingCondition(null); }}>取消</Button>
+            <Button type="primary" onClick={handleSaveConditionRule}>保存</Button>
+          </Space>
+        }
+      >
+        {editingCondition && (
+          <>
+            <div style={{ marginBottom: 16 }}>
+              <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>字段 (field)</Text>
+              <Input
+                style={inputStyle}
+                value={editingCondition.field}
+                onChange={e => setEditingCondition({ ...editingCondition, field: e.target.value })}
+                placeholder="如: status, progress, result"
+              />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>操作符 (operator)</Text>
+              <Select
+                style={{ width: '100%' }}
+                value={editingCondition.operator}
+                onChange={v => setEditingCondition({ ...editingCondition, operator: v })}
+                options={[
+                  { value: '==', label: '== 等于' },
+                  { value: '!=', label: '!= 不等于' },
+                  { value: '>', label: '> 大于' },
+                  { value: '<', label: '< 小于' },
+                  { value: '>=', label: '>= 大于等于' },
+                  { value: '<=', label: '<= 小于等于' },
+                  { value: 'contains', label: 'contains 包含' },
+                  { value: 'not_contains', label: 'not_contains 不包含' },
+                ]}
+              />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>值 (value)</Text>
+              <Input
+                style={inputStyle}
+                value={editingCondition.value}
+                onChange={e => setEditingCondition({ ...editingCondition, value: e.target.value })}
+                placeholder="如: completed, 50, success"
+              />
+            </div>
+            <Divider style={{ margin: '12px 0', borderColor: 'rgba(0, 212, 255, 0.1)' }} />
+            <div style={{ marginBottom: 16 }}>
+              <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>条件为真时执行 (then)</Text>
+              <Select
+                style={{ width: '100%' }}
+                value={editingCondition.thenAgentId}
+                onChange={v => setEditingCondition({ ...editingCondition, thenAgentId: v })}
+                options={agents.filter(a => a.enabled).map(a => ({ value: a.id, label: `${a.name} (${a.role})` }))}
+                placeholder="选择 Agent (then 分支)"
+                allowClear
+              />
+            </div>
+            <div>
+              <Text style={{ color: '#888', fontSize: 12, display: 'block', marginBottom: 4 }}>条件为假时执行 (else)</Text>
+              <Select
+                style={{ width: '100%' }}
+                value={editingCondition.elseAgentId}
+                onChange={v => setEditingCondition({ ...editingCondition, elseAgentId: v })}
+                options={agents.filter(a => a.enabled).map(a => ({ value: a.id, label: `${a.name} (${a.role})` }))}
+                placeholder="选择 Agent (else 分支)"
+                allowClear
+              />
+            </div>
           </>
         )}
       </Drawer>
