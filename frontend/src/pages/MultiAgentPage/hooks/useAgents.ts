@@ -8,7 +8,7 @@ interface DynamicAgentsState {
   dynamicAgents: DynamicAgent[];
 }
 
-interface DynamicAgentsAction =
+type DynamicAgentsAction =
   | { type: 'ADD_DYNAMIC_AGENT'; payload: DynamicAgent }
   | { type: 'REMOVE_DYNAMIC_AGENT'; payload: string }
   | { type: 'CLEAR_DYNAMIC_AGENTS' };

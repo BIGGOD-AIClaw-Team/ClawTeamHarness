@@ -4,46 +4,88 @@ const API_BASE = '/api';
 
 export const api = {
   async createTeam(data: any) {
-    const res = await fetch(`${API_BASE}/teams/teams`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/teams/teams`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (!res.ok) return { code: -1, message: `HTTP ${res.status}`, data: null };
+      return { code: 0, message: 'success', data: json };
+    } catch (err: any) {
+      return { code: -1, message: err.message || '请求失败', data: null };
+    }
   },
 
   async getTeams() {
-    const res = await fetch(`${API_BASE}/teams`);
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/teams`);
+      if (!res.ok) return { code: -1, message: `HTTP ${res.status}`, data: [] };
+      const json = await res.json();
+      return { code: 0, message: 'success', data: json };
+    } catch (err: any) {
+      return { code: -1, message: err.message, data: [] };
+    }
   },
 
   async getTeam(teamId: string) {
-    const res = await fetch(`${API_BASE}/teams/teams/${teamId}`);
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/teams/teams/${teamId}`);
+      if (!res.ok) return { code: -1, message: `HTTP ${res.status}`, data: null };
+      const json = await res.json();
+      return { code: 0, message: 'success', data: json };
+    } catch (err: any) {
+      return { code: -1, message: err.message, data: null };
+    }
   },
 
   async createTask(data: any) {
-    const res = await fetch(`${API_BASE}/teams/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/teams/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const json = await res.json();
+      if (!res.ok) return { code: -1, message: `HTTP ${res.status}`, data: null };
+      return { code: 0, message: 'success', data: json };
+    } catch (err: any) {
+      return { code: -1, message: err.message || '请求失败', data: null };
+    }
   },
 
   async getTasks(params?: { team_id?: string; status?: string }) {
-    const query = new URLSearchParams(params as any).toString();
-    const res = await fetch(`${API_BASE}/teams/tasks${query ? `?${query}` : ''}`);
-    return res.json();
+    try {
+      const query = new URLSearchParams(params as any).toString();
+      const res = await fetch(`${API_BASE}/teams/tasks${query ? `?${query}` : ''}`);
+      if (!res.ok) return { code: -1, message: `HTTP ${res.status}`, data: [] };
+      const json = await res.json();
+      return { code: 0, message: 'success', data: json };
+    } catch (err: any) {
+      return { code: -1, message: err.message, data: [] };
+    }
   },
 
   async getTaskStatus(taskId: string) {
-    const res = await fetch(`${API_BASE}/teams/tasks/${taskId}/status`);
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/teams/tasks/${taskId}/status`);
+      if (!res.ok) return { code: -1, message: `HTTP ${res.status}`, data: null };
+      const json = await res.json();
+      return { code: 0, message: 'success', data: json };
+    } catch (err: any) {
+      return { code: -1, message: err.message, data: null };
+    }
   },
 
   async executeWorkflow(taskId: string) {
-    const res = await fetch(`${API_BASE}/teams/tasks/${taskId}/execute`, { method: 'POST' });
-    return res.json();
+    try {
+      const res = await fetch(`${API_BASE}/teams/tasks/${taskId}/execute`, { method: 'POST' });
+      if (!res.ok) return { code: -1, message: `HTTP ${res.status}`, data: null };
+      const json = await res.json();
+      return { code: 0, message: 'success', data: json };
+    } catch (err: any) {
+      return { code: -1, message: err.message, data: null };
+    }
   },
 };

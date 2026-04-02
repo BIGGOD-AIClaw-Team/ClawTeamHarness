@@ -200,18 +200,34 @@ export function MultiAgentPage() {
   }, []);
 
   const handleCreateTeam = useCallback(async () => {
+    if (!newTeamConfig.name.trim()) {
+      message.warning('请输入团队名称');
+      return;
+    }
     const ok = await teamsHook.createTeam(newTeamConfig);
     if (ok) {
+      message.success('团队创建成功');
       setNewTeamConfig({ name: '', description: '', agents: [] });
       setTeamDrawerVisible(false);
+      teamsHook.loadTeams();
+    } else {
+      message.error('创建失败，请重试');
     }
   }, [newTeamConfig, teamsHook]);
 
   const handleCreateWorkflowTask = useCallback(async () => {
+    if (!newTaskConfig.name.trim()) {
+      message.warning('请输入任务名称');
+      return;
+    }
     const ok = await workflowHook.createTask(newTaskConfig);
     if (ok) {
+      message.success('工作流任务创建成功');
       setNewTaskConfig({ name: '', description: '', workflow_type: 'sequential', steps: [], team_id: undefined });
       setCreateTaskModalVisible(false);
+      workflowHook.loadTasks();
+    } else {
+      message.error('创建失败，请重试');
     }
   }, [newTaskConfig, workflowHook]);
 

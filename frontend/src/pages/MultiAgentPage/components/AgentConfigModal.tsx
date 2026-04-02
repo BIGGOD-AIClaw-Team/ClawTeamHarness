@@ -1,7 +1,7 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback } from 'react';
 import {
   Modal, Form, Select, Input, Tag, Space, Typography, Row, Col,
-  Divider, Button, message, Switch,
+  Divider, Button, message,
 } from 'antd';
 import { SettingOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons';
 import { AgentRole, AgentCapability } from '../types';
