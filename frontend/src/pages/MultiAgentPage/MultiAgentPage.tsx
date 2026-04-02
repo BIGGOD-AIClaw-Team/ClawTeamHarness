@@ -22,6 +22,7 @@ import {
   WORKFLOW_TYPE_OPTIONS, STEP_TYPE_OPTIONS, DEFAULT_AGENT_CAPABILITIES,
   inputStyle, selectStyle, getModelsByProvider,
 } from './constants';
+import { PAPER_RESEARCH_DEMO } from './demo/paperResearch';
 import { WorkflowStep, ConditionRule, TeamAgent, AgentCapability, Mission, TeamEvent } from './types';
 
 const { Text } = Typography;
@@ -210,6 +211,22 @@ export function MultiAgentPage() {
       setCreateTaskModalVisible(false);
     }
   }, [newTaskConfig, workflowHook]);
+
+  const handleLoadDemo = useCallback(() => {
+    setNewTaskConfig({
+      name: PAPER_RESEARCH_DEMO.name,
+      description: PAPER_RESEARCH_DEMO.description,
+      workflow_type: PAPER_RESEARCH_DEMO.workflow.type,
+      steps: PAPER_RESEARCH_DEMO.workflow.steps.map(step => ({
+        id: generateId(),
+        name: step.name,
+        step_type: 'agent' as const,
+        config: { agent_role: step.agent },
+      })),
+      team_id: undefined,
+    });
+    setCreateTaskModalVisible(true);
+  }, []);
 
   const handleAddStep = useCallback(() => {
     const step: WorkflowStep = {
@@ -471,6 +488,9 @@ export function MultiAgentPage() {
                     </Space>
                     <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateTaskModalVisible(true)}>
                       创建工作流
+                    </Button>
+                    <Button icon={<ExperimentOutlined />} onClick={handleLoadDemo}>
+                      加载示例
                     </Button>
                   </div>
                   <WorkflowTaskTable

@@ -7,11 +7,11 @@ import {
 
 export const PRESET_ROLES: import('./types').AgentRole[] = [
   {
-    id: 'commander', role: 'commander', name: '指挥官', description: '负责统筹协调、任务分配、决策制定',
+    id: 'commander', role: 'commander', name: '协调者', description: '负责统筹协调、任务分配、决策制定',
     icon: <TeamOutlined />, color: '#ff6b00', enabled: true, status: 'idle', missions_completed: 0,
   },
   {
-    id: 'analyst', role: 'analyst', name: '分析师', description: '负责信息收集、数据分析、情报整理',
+    id: 'analyst', role: 'analyst', name: '搜索专家', description: '负责信息收集、数据分析、内容整理',
     icon: <EyeOutlined />, color: '#3b82f6', enabled: true, status: 'idle', missions_completed: 0,
   },
   {
@@ -118,10 +118,10 @@ export type StepItem = { title: string; status: StepStatus };
 
 export const EXECUTION_STEP_TITLES = [
   '任务下发',
-  '情报收集',
-  '态势分析',
-  '战术规划',
-  '作战执行',
+  '信息收集',
+  '数据分析',
+  '计划制定',
+  '任务执行',
   '结果汇报',
 ];
 
@@ -168,10 +168,10 @@ export const getStepIndexFromStatus = (status: string): number => {
 };
 
 export const MISSION_TYPE_OPTIONS = [
-  { value: 'defense', label: '防御作战' },
-  { value: 'offense', label: '进攻作战' },
-  { value: 'reconnaissance', label: '侦察任务' },
-  { value: 'support', label: '支援任务' },
+  { value: 'defense', label: '维护任务' },
+  { value: 'offense', label: '创建任务' },
+  { value: 'reconnaissance', label: '调研任务' },
+  { value: 'support', label: '支持任务' },
 ];
 
 export const EVENT_TYPE_OPTIONS = [
@@ -186,13 +186,13 @@ export const DEFAULT_AGENT_CAPABILITIES: Record<string, import('./types').AgentC
     llm: { provider: 'openai', model: 'gpt-4o' },
     skills: ['github', 'web-search'],
     tools: ['read', 'write', 'exec'],
-    prompt: '你是一位指挥官，负责统筹协调、任务分配和决策制定。',
+    prompt: '你是一位协调者，负责统筹协调、任务分配和决策制定。',
   },
   analyst: {
     llm: { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' },
     skills: ['web-fetch', 'document-parsers'],
     tools: ['read', 'web_search', 'web_fetch'],
-    prompt: '你是一位分析师，负责信息收集、数据分析和情报整理。',
+    prompt: '你是一位搜索专家，负责信息收集、数据分析和内容整理。',
   },
   planner: {
     llm: { provider: 'openai', model: 'gpt-4o-mini' },

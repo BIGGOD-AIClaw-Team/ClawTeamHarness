@@ -62,10 +62,10 @@ export const MissionHistoryList: React.FC<MissionHistoryListProps> = ({
       const stepIndex = mission.status === 'pending' ? 0 : Math.min(Math.floor(mission.progress / 16.67), 5);
       return [
         { title: '任务下发', status: stepIndex >= 0 ? 'finish' as const : 'wait' as const },
-        { title: '情报收集', status: stepIndex >= 1 ? 'finish' as const : stepIndex === 1 ? 'process' as const : 'wait' as const },
-        { title: '态势分析', status: stepIndex >= 2 ? 'finish' as const : stepIndex === 2 ? 'process' as const : 'wait' as const },
-        { title: '战术规划', status: stepIndex >= 3 ? 'finish' as const : stepIndex === 3 ? 'process' as const : 'wait' as const },
-        { title: '作战执行', status: stepIndex >= 4 ? 'finish' as const : stepIndex === 4 ? 'process' as const : 'wait' as const },
+        { title: '信息收集', status: stepIndex >= 1 ? 'finish' as const : stepIndex === 1 ? 'process' as const : 'wait' as const },
+        { title: '数据分析', status: stepIndex >= 2 ? 'finish' as const : stepIndex === 2 ? 'process' as const : 'wait' as const },
+        { title: '计划制定', status: stepIndex >= 3 ? 'finish' as const : stepIndex === 3 ? 'process' as const : 'wait' as const },
+        { title: '任务执行', status: stepIndex >= 4 ? 'finish' as const : stepIndex === 4 ? 'process' as const : 'wait' as const },
         { title: '结果汇报', status: stepIndex >= 5 ? 'finish' as const : stepIndex === 5 ? 'process' as const : 'wait' as const },
       ];
     }
