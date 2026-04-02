@@ -1,4 +1,4 @@
-import { useReducer, useCallback, useEffect } from 'react';
+import { useReducer, useCallback, useEffect, useRef } from 'react';
 import { message } from 'antd';
 import { WorkflowTask, WorkflowsState, WorkflowStep } from '../types';
 import { api } from '../api';
@@ -122,27 +122,49 @@ export function useWorkflow() {
     message.info('任务已停止');
   }, []);
 
-  // Poll running tasks
+  // Poll running tasks - fix memory leak: use ref for dispatch, stable dep for running task IDs
+  const dispatchRef = useRef(dispatch);
+  dispatchRef.current = dispatch;
+  const runningTaskIdsRef = useRef<string[]>([]);
+
   useEffect(() => {
-    const runningTasks = state.tasks.filter(t => t.status === 'running');
-    if (runningTasks.length === 0) return;
+    const currentRunning = state.tasks.filter(t => t.status === 'running');
+    const currentIds = currentRunning.map(t => t.task_id).sort();
+
+    if (currentIds.length === 0) {
+      runningTaskIdsRef.current = [];
+      return;
+    }
+
+    // Check if running task IDs actually changed
+    const prevIds = runningTaskIdsRef.current.sort();
+    if (JSON.stringify(currentIds) === JSON.stringify(prevIds)) {
+      return; // No change in running tasks, don't restart interval
+    }
+
+    runningTaskIdsRef.current = currentIds;
 
     const interval = setInterval(() => {
-      runningTasks.forEach(task => {
+      const currentRunningNow = state.tasks.filter(t => t.status === 'running');
+      if (currentRunningNow.length === 0) return;
+
+      currentRunningNow.forEach(task => {
         api.getTaskStatus(task.task_id).then((res: any) => {
           if (res.code === 0) {
             const { status, progress, error } = res.data;
-            dispatch({
+            dispatchRef.current({
               type: 'UPDATE_TASK_STATUS',
               payload: { taskId: task.task_id, status, progress, error },
             });
           }
+        }).catch((err: any) => {
+          console.error(`[useWorkflow] Failed to poll task ${task.task_id}:`, err);
         });
       });
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [state.tasks.filter(t => t.status === 'running').length]);
+  }, [state.tasks]);
 
   return {
     ...state,

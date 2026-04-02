@@ -3,17 +3,34 @@ import uuid
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header, Request
 from pydantic import BaseModel
 
 from ...db.database import get_db
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/teams", tags=["teams"])
+# ==================== Simple Auth ====================
+
+def verify_api_key(x_api_key: Optional[str] = Header(None)) -> str:
+    """验证 API Key - 支持通过 X-API-Key header 或环境变量配置"""
+    expected_key = os.environ.get("TEAMS_API_KEY", "dev-secret-key")
+    # 在开发模式或未配置 key 时跳过验证
+    if expected_key == "" or expected_key == "disable":
+        return "anonymous"
+    if x_api_key is None:
+        raise HTTPException(status_code=401, detail="Missing X-API-Key header")
+    if x_api_key != expected_key:
+        logger.warning(f"Invalid API key attempt: {x_api_key[:8]}...")
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    return x_api_key
+
+
+router = APIRouter(prefix="/api/teams", tags=["teams"], dependencies=[verify_api_key])
 
 
 # ==================== Data Models ====================
@@ -245,13 +262,20 @@ async def execute_workflow(task_id: str):
         raise HTTPException(status_code=400, detail=f"Task is already {task['status']}")
 
     # 启动异步执行
-    asyncio.create_task(_execute_workflow_async(task_id, task))
+    try:
+        asyncio.create_task(_execute_workflow_async(task_id, task))
+        logger.info(f"Workflow task {task_id} async execution started")
+    except Exception as e:
+        logger.exception(f"Failed to create async task for workflow {task_id}: {e}")
+        task_store.update_task_status(task_id, "failed", error=f"Failed to start execution: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start workflow execution: {e}")
 
     return {"code": 0, "data": {"task_id": task_id, "status": "running", "message": "Workflow execution started"}}
 
 
 async def _execute_workflow_async(task_id: str, task: dict):
-    """异步执行工作流（带结果通知）"""
+    """异步执行工作流（带结果通知）- 添加异常处理防止静默失败"""
+    logger.info(f"[WF-{task_id}] Starting workflow execution")
     from ..agents.workflow_engine import workflow_engine, WorkflowStep
 
     # 设置持久化回调：任务完成后自动保存到数据库
