@@ -226,7 +226,7 @@ export function MultiAgentPage() {
 
   // Team Config State
   const [teams, setTeams] = useState<Team[]>([]);
-  const [_, setSelectedTeam] = useState<Team | null>(null);
+  const [_selTeam, setSelectedTeam] = useState<Team | null>(null);
   const [teamDrawerVisible, setTeamDrawerVisible] = useState(false);
   const [newTeamConfig, setNewTeamConfig] = useState({ name: '', description: '', agents: [] as TeamAgent[] });
 
@@ -244,7 +244,7 @@ export function MultiAgentPage() {
   const [stepDrawerVisible, setStepDrawerVisible] = useState(false);
 
   // Task Monitor State
-  const [_, setPollingInterval] = useState<ReturnType<typeof setInterval> | null>(null);
+  const [_pollInterval, setPollingInterval] = useState<ReturnType<typeof setInterval> | null>(null);
 
   // Statistics
   const totalAgents = agents.filter(a => a.enabled).length;
@@ -1322,7 +1322,7 @@ export function MultiAgentPage() {
               <Card key={step.id} size="small" style={{ marginBottom: 8, background: 'rgba(0, 20, 40, 0.4)' }}>
                 <Space style={{ width: '100%', justifyContent: 'space-between' }}>
                   <Space>
-                    <Tag icon={<ArrowRightOutlined />}>{idx + 1}</Tag>
+                    <Tag icon={<ArrowRightOutlined />}>{_idx + 1}</Tag>
                     <Text style={{ color: '#e0e6ed' }}>{step.name}</Text>
                     <Tag>{step.step_type}</Tag>
                   </Space>
