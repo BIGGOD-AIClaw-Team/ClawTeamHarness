@@ -1,25 +1,45 @@
+"""
+Agent API routes — Task 1.5: API 适配.
+
+Changes vs old version:
+- Router prefix: /api/agents → /api/v1/agents
+- Uses new AgentConfig Pydantic model from config_models
+- New endpoints: validate, test, preview
+- YAML export / import support
+- Canonical field: agent_mode.type (not mode_config.type)
+- Backward-compatible: old graph_def / mode_config still accepted on write
+"""
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ValidationError
 from typing import Optional, List, Dict, Any
 import json
 import uuid
 from pathlib import Path
 from datetime import datetime
 import logging
-from ...db.database import get_db
+import yaml
+
+from db.database import get_db
+from agents.config_models import (
+    AgentConfig,
+    LLMConfig,
+    AgentModeConfig,
+    PromptConfig,
+    MemoryConfig,
+    DecisionConfig,
+    ToolsConfig,
+    MultiAgentConfig,
+    AdvancedConfig,
+    AgentMode,
+)
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/agents", tags=["agents"])
+router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 
-# 使用 backend 目录作为基准，确保跨目录启动时路径一致
-# agents.py at src/api/routes/agents.py -> parents[4] = ClawTeamHarness/
-# data/agents 位于 ClawTeamHarness/data/agents
-# agents.py at src/api/routes/agents.py -> parents[5] = ClawTeamHarness/
-# data/agents 位于 ClawTeamHarness/data/agents
-AGENTS_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent / "data" / "agents"
-AGENTS_DIR.mkdir(parents=True, exist_ok=True)
+# Data directory
+AGENTS_DIR = Path(__file__).resolve().parents[4] / "data" / "agents"
 AGENTS_DIR.mkdir(parents=True, exist_ok=True)
 
 DEFAULT_AGENT_GRAPH = {
@@ -31,60 +51,64 @@ DEFAULT_AGENT_GRAPH = {
     "edges": [
         {"id": "e1", "source": "start-1", "target": "llm-1"},
         {"id": "e2", "source": "llm-1", "target": "end-1"},
-    ]
+    ],
 }
 
-class LLMConfig(BaseModel):
-    provider: str = "openai"
-    model: str = "gpt-4"
-    api_key: Optional[str] = ""
-    temperature: float = 0.7
-    max_tokens: int = 2048
 
-class AgentModeConfig(BaseModel):
-    type: str = "react"
-    max_iterations: int = 10
-    early_stopping: bool = True
-
-class PromptConfig(BaseModel):
-    system: str = ""
-    user_template: str = "{input}"
-
-class MemoryConfig(BaseModel):
-    enabled: bool = True
-    type: str = "hybrid"
-
-class DecisionConfig(BaseModel):
-    auto_critique: bool = True
-    confidence_threshold: float = 0.8
-
-class ToolsConfig(BaseModel):
-    enabled: bool = True
-
-class SubAgent(BaseModel):
-    id: str
-    role: str
-    name: str
-    enabled: bool = True
+# ---------------------------------------------------------------------------
+# Legacy-compatible request models (accepted on create/update)
+# ---------------------------------------------------------------------------
 
 class AgentCreateRequest(BaseModel):
-    name: str
-    description: Optional[str] = ""
-    graph_def: dict = {}
-    llm_config: Optional[dict] = {}
-    mode_config: Optional[dict] = {}
-    prompt_config: Optional[dict] = {}
-    memory_config: Optional[dict] = {}
-    decision_config: Optional[dict] = {}
-    tools_config: Optional[dict] = {}
-    skills: Optional[List[str]] = []
-    sub_agents: Optional[List[dict]] = []
-    mcp_tools: Optional[List[str]] = []
+    """Create agent — supports both new AgentConfig fields and old flat fields."""
+    # New-style fields (AgentConfig)
+    agent_id: Optional[str] = None
+    name: str = ""
+    description: str = ""
+    tags: list[str] = []
+    icon: str = "🤖"
+    category: str = "general"
+    llm: Optional[LLMConfig] = None
+    agent_mode: Optional[AgentModeConfig] = None
+    prompt: Optional[PromptConfig] = None
+    memory: Optional[MemoryConfig] = None
+    decision: Optional[DecisionConfig] = None
+    tools: Optional[ToolsConfig] = None
+    multi_agent: Optional[MultiAgentConfig] = None
+    advanced: Optional[AdvancedConfig] = None
+
+    # Legacy flat fields (backward-compat; mapped to new structure on save)
+    graph_def: Optional[dict] = None
+    llm_config: Optional[dict] = None      # → llm
+    mode_config: Optional[dict] = None     # → agent_mode
+    prompt_config: Optional[dict] = None   # → prompt
+    memory_config: Optional[dict] = None   # → memory
+    decision_config: Optional[dict] = None # → decision
+    tools_config: Optional[dict] = None    # → tools
+    skills: Optional[list[str]] = None
+    sub_agents: Optional[list[dict]] = None
+    mcp_tools: Optional[list[str]] = None
     status: str = "draft"
 
+
 class AgentUpdateRequest(BaseModel):
+    """Update agent — same dual-field strategy."""
     name: Optional[str] = None
     description: Optional[str] = None
+    tags: Optional[list[str]] = None
+    icon: Optional[str] = None
+    category: Optional[str] = None
+    llm: Optional[LLMConfig] = None
+    agent_mode: Optional[AgentModeConfig] = None
+    prompt: Optional[PromptConfig] = None
+    memory: Optional[MemoryConfig] = None
+    decision: Optional[DecisionConfig] = None
+    tools: Optional[ToolsConfig] = None
+    multi_agent: Optional[MultiAgentConfig] = None
+    advanced: Optional[AdvancedConfig] = None
+    status: Optional[str] = None
+
+    # Legacy
     graph_def: Optional[dict] = None
     llm_config: Optional[dict] = None
     mode_config: Optional[dict] = None
@@ -92,342 +116,507 @@ class AgentUpdateRequest(BaseModel):
     memory_config: Optional[dict] = None
     decision_config: Optional[dict] = None
     tools_config: Optional[dict] = None
-    skills: Optional[List[str]] = None
-    sub_agents: Optional[List[dict]] = None
-    mcp_tools: Optional[List[str]] = None
-    status: Optional[str] = None
+    skills: Optional[list[str]] = None
+    sub_agents: Optional[list[dict]] = None
+    mcp_tools: Optional[list[str]] = None
+
+
+class AgentExecuteRequest(BaseModel):
+    message: str = ""
+    session_id: Optional[str] = None
+    input_data: dict = {}
+    model: Optional[str] = None
+
+
+class TestExecuteRequest(BaseModel):
+    message: str = "Hello, are you working?"
+    session_id: Optional[str] = None
+    model: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _build_agent_config(req: AgentCreateRequest) -> AgentConfig:
+    """Convert a create/update request into a full AgentConfig dict for storage."""
+    cfg: Dict[str, Any] = {}
+
+    # Identity
+    cfg["agent_id"] = req.agent_id or str(uuid.uuid4())[:8]
+    cfg["name"] = req.name
+    cfg["description"] = req.description
+    cfg["tags"] = req.tags
+    cfg["icon"] = req.icon
+    cfg["category"] = req.category
+
+    # Core config — prefer new typed fields, fall back to legacy dicts
+    cfg["llm"] = _model_to_dict(req.llm) if req.llm else (req.llm_config or {})
+    cfg["agent_mode"] = _model_to_dict(req.agent_mode) if req.agent_mode else (req.mode_config or {})
+    cfg["prompt"] = _model_to_dict(req.prompt) if req.prompt else (req.prompt_config or {})
+    cfg["memory"] = _model_to_dict(req.memory) if req.memory else (req.memory_config or {})
+    cfg["decision"] = _model_to_dict(req.decision) if req.decision else (req.decision_config or {})
+    cfg["tools"] = _model_to_dict(req.tools) if req.tools else (req.tools_config or {})
+    cfg["multi_agent"] = _model_to_dict(req.multi_agent) if req.multi_agent else {}
+    cfg["advanced"] = _model_to_dict(req.advanced) if req.advanced else {}
+
+    # Status
+    cfg["status"] = req.status
+    cfg["created_at"] = datetime.now().isoformat()
+    cfg["updated_at"] = cfg["created_at"]
+    cfg["version"] = 1
+
+    # Legacy graph_def (kept for backward compat)
+    cfg["graph_def"] = req.graph_def if req.graph_def else DEFAULT_AGENT_GRAPH
+
+    # Legacy flat lists
+    cfg["skills"] = req.skills or []
+    cfg["sub_agents"] = req.sub_agents or []
+    cfg["mcp_tools"] = req.mcp_tools or []
+
+    return cfg
+
+
+def _apply_update(existing: Dict[str, Any], req: AgentUpdateRequest) -> Dict[str, Any]:
+    """Merge update request into existing agent data dict."""
+    data = existing.copy()
+
+    # New fields
+    for field in ("name", "description", "tags", "icon", "category", "status"):
+        val = getattr(req, field, None)
+        if val is not None:
+            data[field] = val
+
+    for section in ("llm", "agent_mode", "prompt", "memory", "decision", "tools", "multi_agent", "advanced"):
+        val = getattr(req, section, None)
+        if val is not None:
+            data[section] = _model_to_dict(val)
+        # Also check legacy flat variant
+        legacy_map = {
+            "llm": "llm_config",
+            "agent_mode": "mode_config",
+            "prompt": "prompt_config",
+            "memory": "memory_config",
+            "decision": "decision_config",
+            "tools": "tools_config",
+        }
+        legacy_key = legacy_map.get(section)
+        if legacy_key:
+            legacy_val = getattr(req, legacy_key, None)
+            if legacy_val is not None and data.get(section) is None:
+                data[section] = legacy_val
+
+    # Legacy graph_def
+    if req.graph_def is not None:
+        data["graph_def"] = req.graph_def if req.graph_def.get("nodes") else DEFAULT_AGENT_GRAPH
+
+    # Legacy flat lists
+    for legacy_field in ("skills", "sub_agents", "mcp_tools"):
+        val = getattr(req, legacy_field, None)
+        if val is not None:
+            data[legacy_field] = val
+
+    data["updated_at"] = datetime.now().isoformat()
+    return data
+
+
+def _model_to_dict(model: BaseModel) -> dict:
+    """Convert a Pydantic model to a plain dict, excluding None values."""
+    return model.model_dump(exclude_none=True)
+
+
+def _load_agent(agent_id: str) -> dict:
+    path = AGENTS_DIR / f"{agent_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+    with open(path) as f:
+        return json.load(f)
+
+
+def _save_agent(agent_id: str, data: dict):
+    path = AGENTS_DIR / f"{agent_id}.json"
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+def _validate_agent_config(data: dict) -> List[str]:
+    """Validate agent config and return list of error messages (empty = valid)."""
+    errors = []
+
+    if not data.get("name"):
+        errors.append("name is required")
+    if not data.get("agent_id"):
+        errors.append("agent_id is required")
+
+    # Validate agent_mode.type against known enum values
+    mode_data = data.get("agent_mode", {})
+    mode_type = mode_data.get("type") if isinstance(mode_data, dict) else None
+    if mode_type and mode_type not in [e.value for e in AgentMode]:
+        errors.append(f"agent_mode.type '{mode_type}' is not a known AgentMode")
+
+    # Validate llm provider
+    llm_data = data.get("llm", {})
+    provider = llm_data.get("provider") if isinstance(llm_data, dict) else None
+    if provider and provider not in ["openai", "anthropic", "glm", "minimax", "qwen", "doubao", "wenxin", "hunyuan", "local"]:
+        errors.append(f"llm.provider '{provider}' is not a known provider")
+
+    # Validate nested structure basics
+    for section in ("llm", "agent_mode", "prompt", "memory", "decision", "tools"):
+        section_data = data.get(section)
+        if section_data and not isinstance(section_data, dict):
+            errors.append(f"{section} must be a dict, got {type(section_data).__name__}")
+
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 
 @router.get("/")
 async def list_agents(status: str = Query(None)):
-    """列出 Agent，支持按状态筛选"""
+    """List agents, optionally filtered by status."""
     agents = []
-    for f in AGENTS_DIR.glob("*.json"):
+    for f in sorted(AGENTS_DIR.glob("*.json")):
         with open(f) as fp:
             agent = json.load(fp)
             if status is None or agent.get("status") == status:
                 agents.append(agent)
     return {"agents": agents}
 
+
 @router.post("/")
 async def create_agent(request: AgentCreateRequest):
     """
-    创建 Agent（初始状态为草稿）
-    P0-3 安全修复: 使用 UUID 生成唯一 ID，避免 name.lower().replace(" ", "_") 
-    导致的 ID 冲突问题（如 "MyAgent" 和 "myagent" 都会生成 "myagent"）
+    Create a new agent.
+    Accepts both new AgentConfig-structured fields and legacy flat fields.
     """
-    # P0-3 修复: 使用 UUID 确保全局唯一性
-    agent_id = str(uuid.uuid4())[:8]  # 使用短 UUID 便于阅读
+    agent_id = request.agent_id or str(uuid.uuid4())[:8]
     path = AGENTS_DIR / f"{agent_id}.json"
     if path.exists():
-        raise HTTPException(status_code=400, detail="Agent already exists")
-    
-    # Use DEFAULT_GRAPH if no nodes provided
-    graph_def = request.graph_def
-    if not graph_def or not graph_def.get("nodes"):
-        graph_def = DEFAULT_AGENT_GRAPH
-    
-    # Build complete agent data
-    agent_data = {
-        "agent_id": agent_id,
-        "name": request.name,
-        "description": request.description or "",
-        "graph_def": graph_def,
-        "llm_config": request.llm_config or {"provider": "openai", "model": "gpt-4", "temperature": 0.7},
-        "mode_config": request.mode_config or {"type": "react", "max_iterations": 10},
-        "prompt_config": request.prompt_config or {"system": "你是一个有帮助的AI助手。"},
-        "memory_config": request.memory_config or {"enabled": True, "type": "hybrid"},
-        "decision_config": request.decision_config or {"auto_critique": True},
-        "tools_config": request.tools_config or {"enabled": True},
-        "skills": request.skills or [],
-        "sub_agents": request.sub_agents or [],
-        "mcp_tools": request.mcp_tools or [],
-        "status": "draft",
-        "created_at": datetime.now().isoformat(),
-    }
-    
-    logger.info(f"Creating agent {agent_id}: llm_config={agent_data['llm_config']}")
-    
-    with open(path, "w") as f:
-        json.dump(agent_data, f, indent=2, ensure_ascii=False)
-    
-    return {"agent_id": agent_id, "status": "created", "agent_status": "draft"}
+        raise HTTPException(status_code=400, detail=f"Agent '{agent_id}' already exists")
+
+    data = _build_agent_config(request)
+    data["agent_id"] = agent_id
+
+    # Validate before saving
+    errors = _validate_agent_config(data)
+    if errors:
+        raise HTTPException(status_code=422, detail={"message": "Validation failed", "errors": errors})
+
+    logger.info(f"Creating agent {agent_id}: llm={data.get('llm')}, agent_mode={data.get('agent_mode')}")
+    _save_agent(agent_id, data)
+    return {"agent_id": agent_id, "status": "created", "agent_status": data["status"]}
+
 
 @router.get("/{agent_id}")
 async def get_agent(agent_id: str):
-    """获取 Agent"""
-    path = AGENTS_DIR / f"{agent_id}.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    with open(path) as f:
-        return json.load(f)
+    """Get agent by ID."""
+    return _load_agent(agent_id)
+
 
 @router.put("/{agent_id}")
 async def update_agent(agent_id: str, request: AgentUpdateRequest):
-    """更新 Agent"""
-    path = AGENTS_DIR / f"{agent_id}.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    with open(path) as f:
-        agent_data = json.load(f)
-    
-    # Update only provided fields
-    if request.name is not None:
-        agent_data["name"] = request.name
-    if request.description is not None:
-        agent_data["description"] = request.description
-    if request.graph_def is not None:
-        agent_data["graph_def"] = request.graph_def if request.graph_def.get("nodes") else DEFAULT_AGENT_GRAPH
-    if request.status is not None:
-        agent_data["status"] = request.status
-    if request.llm_config is not None:
-        agent_data["llm_config"] = request.llm_config
-    if request.mode_config is not None:
-        agent_data["mode_config"] = request.mode_config
-    if request.prompt_config is not None:
-        agent_data["prompt_config"] = request.prompt_config
-    if request.memory_config is not None:
-        agent_data["memory_config"] = request.memory_config
-    if request.decision_config is not None:
-        agent_data["decision_config"] = request.decision_config
-    if request.tools_config is not None:
-        agent_data["tools_config"] = request.tools_config
-    if request.skills is not None:
-        agent_data["skills"] = request.skills
-    if request.sub_agents is not None:
-        agent_data["sub_agents"] = request.sub_agents
-    if request.mcp_tools is not None:
-        agent_data["mcp_tools"] = request.mcp_tools
-    
-    agent_data["updated_at"] = datetime.now().isoformat()
-    
-    logger.info(f"Updating agent {agent_id}: llm_config={agent_data.get('llm_config')}")
-    
-    with open(path, "w") as f:
-        json.dump(agent_data, f, indent=2, ensure_ascii=False)
-    
+    """Update an existing agent."""
+    existing = _load_agent(agent_id)
+    data = _apply_update(existing, request)
+
+    errors = _validate_agent_config(data)
+    if errors:
+        raise HTTPException(status_code=422, detail={"message": "Validation failed", "errors": errors})
+
+    logger.info(f"Updating agent {agent_id}")
+    _save_agent(agent_id, data)
     return {"agent_id": agent_id, "status": "updated"}
+
 
 @router.delete("/{agent_id}")
 async def delete_agent(agent_id: str):
-    """删除 Agent"""
+    """Delete an agent."""
     path = AGENTS_DIR / f"{agent_id}.json"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Agent not found")
     path.unlink()
     return {"status": "deleted"}
 
+
 @router.post("/{agent_id}/publish")
 async def publish_agent(agent_id: str):
-    """发布 Agent"""
-    path = AGENTS_DIR / f"{agent_id}.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    with open(path) as f:
-        data = json.load(f)
-    
+    """Publish an agent."""
+    data = _load_agent(agent_id)
     data["status"] = "published"
     data["published_at"] = datetime.now().isoformat()
-    
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
-    
+    _save_agent(agent_id, data)
     return {"status": "published", "agent_id": agent_id}
+
 
 @router.post("/{agent_id}/unpublish")
 async def unpublish_agent(agent_id: str):
-    """取消发布 Agent"""
-    path = AGENTS_DIR / f"{agent_id}.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    with open(path) as f:
-        data = json.load(f)
-    
+    """Unpublish an agent."""
+    data = _load_agent(agent_id)
     data["status"] = "draft"
-    data["unpublished_at"] = datetime.now().isoformat()
-    
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
-    
+    data["updated_at"] = datetime.now().isoformat()
+    _save_agent(agent_id, data)
     return {"status": "unpublished", "agent_id": agent_id}
 
-@router.get("/{agent_id}/conversations")
-async def get_conversations(agent_id: str):
-    """获取 Agent 的所有会话"""
-    path = AGENTS_DIR / f"{agent_id}.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    db = get_db()
-    conversations = db.get_conversations(agent_id)
-    return {"conversations": conversations}
 
-@router.get("/{agent_id}/messages/{conversation_id}")
-async def get_messages(agent_id: str, conversation_id: int):
-    """获取会话的所有消息"""
-    path = AGENTS_DIR / f"{agent_id}.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    db = get_db()
-    messages = db.get_messages(conversation_id)
-    return {"messages": messages}
+# ---------------------------------------------------------------------------
+# Task 1.5 new endpoints
+# ---------------------------------------------------------------------------
 
-class AgentExecuteRequest(BaseModel):
-    message: str = ""
-    session_id: Optional[str] = None
-    input_data: dict = {}
-    model: Optional[str] = None  # P0-4 修复: 支持前端指定模型
-
-@router.post("/{agent_id}/execute")
-async def execute_agent(agent_id: str, request: AgentExecuteRequest):
+@router.post("/{agent_id}/validate")
+async def validate_agent_config(agent_id: str):
     """
-    触发 Agent 执行 - 使用简洁的 Agent 模式
-    P0-4 修复: 支持前端传递 model 参数覆盖默认配置
+    Validate an agent's configuration.
+    Returns {valid: bool, errors: list[str]}.
     """
-    from ...agents.simple_agent import Agent as SimpleAgent
+    data = _load_agent(agent_id)
+    errors = _validate_agent_config(data)
+    return {"valid": len(errors) == 0, "errors": errors}
 
-    # 加载 Agent
-    path = AGENTS_DIR / f"{agent_id}.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Agent not found")
 
-    with open(path) as f:
-        data = json.load(f)
+class TestResult(BaseModel):
+    status: str  # "success" | "error"
+    response: Optional[str] = None
+    error: Optional[str] = None
+    latency_ms: Optional[float] = None
+    model: Optional[str] = None
 
-    # 取出配置
-    llm_config = data.get("llm_config", {})
-    prompt_config = data.get("prompt_config", {})
-    memory_config = data.get("memory_config", {})
-    
-    # P0-4 修复: 如果请求中指定了 model，覆盖 llm_config 中的 model
+
+@router.post("/{agent_id}/test", response_model=TestResult)
+async def test_agent(agent_id: str, request: TestExecuteRequest):
+    """
+    Test-run an agent with a simple message.
+    Does NOT persist the conversation.
+    """
+    data = _load_agent(agent_id)
+
+    llm_config = data.get("llm", {})
+    prompt_config = data.get("prompt_config", data.get("prompt", {}))
+    memory_config = data.get("memory_config", data.get("memory", {}))
+
+    # Allow model override
     if request.model:
+        llm_config = dict(llm_config)
         llm_config["model"] = request.model
-        logger.info(f"P0-4 修复: 使用前端指定模型 {request.model}")
 
-    logger.info(f"=== execute_agent {agent_id} ===")
-    logger.info(f"llm_config: {llm_config}")
-    logger.info(f"prompt_config: {prompt_config}")
+    from agents.simple_agent import Agent as SimpleAgent
+    import time
 
-    # 用户消息
-    user_message = request.message or request.input_data.get("message", "")
+    user_message = request.message
     if not user_message:
-        return {"status": "error", "error": "消息不能为空"}
+        return TestResult(status="error", error="message is required")
 
     try:
-        # 创建简单的 Agent
         agent = SimpleAgent(
             name=agent_id,
             llm_config=llm_config,
             prompt_config=prompt_config,
             memory_config=memory_config,
         )
-        
-        # 直接对话
+
+        start = time.time()
         response = await agent.chat(user_message)
-        
-        return {
-            "status": "completed",
-            "result": {
-                "response": response,
-                "agent_id": agent_id,
-            }
-        }
+        latency_ms = (time.time() - start) * 1000
+
+        return TestResult(
+            status="success",
+            response=response,
+            latency_ms=round(latency_ms, 1),
+            model=llm_config.get("model"),
+        )
+    except Exception as e:
+        logger.exception(f"Test run failed for agent {agent_id}")
+        return TestResult(status="error", error=str(e))
+
+
+@router.get("/{agent_id}/preview")
+async def preview_agent_yaml(agent_id: str):
+    """
+    Preview agent configuration as YAML.
+    Returns the full agent config in YAML format for export/inspection.
+    """
+    data = _load_agent(agent_id)
+
+    # Convert to YAML — use yaml.safe_dump for clean output
+    yaml_str = yaml.safe_dump(data, allow_unicode=True, sort_keys=False, indent=2)
+
+    return {
+        "agent_id": agent_id,
+        "yaml": yaml_str,
+        "format": "yaml",
+    }
+
+
+# ---------------------------------------------------------------------------
+# YAML Import / Export
+# ---------------------------------------------------------------------------
+
+class ImportRequest(BaseModel):
+    yaml_content: str
+
+
+@router.post("/import")
+async def import_agent(request: ImportRequest):
+    """
+    Import an agent from YAML content.
+    Returns the created agent_id.
+    """
+    try:
+        data = yaml.safe_load(request.yaml_content)
+    except yaml.YAMLError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}")
+
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail="YAML must represent an agent object")
+
+    errors = _validate_agent_config(data)
+    if errors:
+        raise HTTPException(status_code=422, detail={"message": "Validation failed", "errors": errors})
+
+    # Generate new agent_id (always — imported agents get fresh IDs)
+    agent_id = str(uuid.uuid4())[:8]
+    while (AGENTS_DIR / f"{agent_id}.json").exists():
+        agent_id = str(uuid.uuid4())[:8]
+
+    data["agent_id"] = agent_id
+    data["created_at"] = datetime.now().isoformat()
+    data["updated_at"] = data["created_at"]
+
+    _save_agent(agent_id, data)
+    logger.info(f"Imported agent {agent_id} from YAML")
+    return {"agent_id": agent_id, "status": "imported"}
+
+
+@router.get("/export/{agent_id}")
+async def export_agent_yaml(agent_id: str):
+    """Export an agent as downloadable YAML."""
+    data = _load_agent(agent_id)
+    yaml_str = yaml.safe_dump(data, allow_unicode=True, sort_keys=False, indent=2)
+    filename = f"agent_{agent_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.yaml"
+    return {
+        "agent_id": agent_id,
+        "yaml": yaml_str,
+        "filename": filename,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Conversations (kept from old version)
+# ---------------------------------------------------------------------------
+
+@router.get("/{agent_id}/conversations")
+async def get_conversations(agent_id: str):
+    """Get all conversations for an agent."""
+    _load_agent(agent_id)  # 404 if not found
+    db = get_db()
+    conversations = db.get_conversations(agent_id)
+    return {"conversations": conversations}
+
+
+@router.get("/{agent_id}/messages/{conversation_id}")
+async def get_messages(agent_id: str, conversation_id: int):
+    """Get all messages in a conversation."""
+    _load_agent(agent_id)
+    db = get_db()
+    messages = db.get_messages(conversation_id)
+    return {"messages": messages}
+
+
+@router.post("/{agent_id}/execute")
+async def execute_agent(agent_id: str, request: AgentExecuteRequest):
+    """
+    Trigger agent execution.
+    Supports model override via request.model.
+    """
+    from agents.simple_agent import Agent as SimpleAgent
+
+    data = _load_agent(agent_id)
+
+    llm_config = dict(data.get("llm", {}))
+    prompt_config = data.get("prompt_config", data.get("prompt", {}))
+    memory_config = data.get("memory_config", data.get("memory", {}))
+
+    if request.model:
+        llm_config["model"] = request.model
+        logger.info(f"execute_agent: using model override {request.model}")
+
+    user_message = request.message or request.input_data.get("message", "")
+    if not user_message:
+        return {"status": "error", "error": "message cannot be empty"}
+
+    try:
+        agent = SimpleAgent(
+            name=agent_id,
+            llm_config=llm_config,
+            prompt_config=prompt_config,
+            memory_config=memory_config,
+        )
+        response = await agent.chat(user_message)
+        return {"status": "completed", "result": {"response": response, "agent_id": agent_id}}
     except Exception as e:
         logger.exception(f"Agent execution failed: {e}")
         return {"status": "error", "error": str(e)}
 
+
 @router.post("/{agent_id}/stream")
 async def stream_agent(agent_id: str, request: AgentExecuteRequest):
-    """
-    流式对话 - 返回 Server-Sent Events，支持历史消息
-    P0-4 修复: 支持前端传递 model 参数覆盖默认配置
-    """
-    from ...agents.simple_agent import Agent as SimpleAgent
+    """Stream agent response as SSE."""
+    from agents.simple_agent import Agent as SimpleAgent
 
-    # 加载 Agent
-    path = AGENTS_DIR / f"{agent_id}.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Agent not found")
+    data = _load_agent(agent_id)
 
-    with open(path) as f:
-        data = json.load(f)
+    llm_config = dict(data.get("llm", {}))
+    prompt_config = data.get("prompt_config", data.get("prompt", {}))
+    memory_config = data.get("memory_config", data.get("memory", {}))
 
-    # 取出配置
-    llm_config = data.get("llm_config", {})
-    prompt_config = data.get("prompt_config", {})
-    memory_config = data.get("memory_config", {})
-    
-    # P0-4 修复: 如果请求中指定了 model，覆盖 llm_config 中的 model
     if request.model:
         llm_config["model"] = request.model
-        logger.info(f"P0-4 修复: stream_agent 使用前端指定模型 {request.model}")
 
-    logger.info(f"=== stream_agent {agent_id} ===")
-
-    # 用户消息
     user_message = request.message or request.input_data.get("message", "")
     if not user_message:
-        error_data = json.dumps({"error": "消息不能为空"}, ensure_ascii=False)
+        error_data = json.dumps({"error": "message cannot be empty"}, ensure_ascii=False)
         async def error_gen():
             yield f"data: {error_data}\n\n"
         return StreamingResponse(error_gen(), media_type="text/event-stream")
 
-    # 获取 session_id
     session_id = request.session_id or f"session_{agent_id}_{int(datetime.now().timestamp())}"
 
     async def generate():
         db = get_db()
         is_new_session = False
-        
-        # 查找会话
+
         conversation = db.get_conversation_by_session(agent_id, session_id)
         if not conversation:
-            # 新会话：先保存用户消息（会自动创建会话）
             db.save_message(agent_id, session_id, "user", user_message)
             conversation = db.get_conversation_by_session(agent_id, session_id)
             is_new_session = True
-        
+
         conv_id = conversation["id"]
-        
-        # 从数据库加载历史消息
         history_msgs = db.get_messages(conv_id)
-        
-        # 如果是新会话，历史中最后一条是刚存的用户消息，需要排除（Agent 会自己处理）
         if is_new_session and history_msgs and history_msgs[-1]["content"] == user_message:
             history_msgs = history_msgs[:-1]
-        
+
         try:
-            # 创建简单的 Agent
             agent = SimpleAgent(
                 name=agent_id,
                 llm_config=llm_config,
                 prompt_config=prompt_config,
                 memory_config=memory_config,
             )
-            
-            # 加载历史到 Agent
             for msg in history_msgs:
                 agent.messages.append({"role": msg["role"], "content": msg["content"]})
-            
-            # 流式调用 LLM
+
             full_response = ""
             async for chunk in agent.stream_chat(user_message):
                 full_response += chunk
-                data_chunk = json.dumps({"chunk": chunk}, ensure_ascii=False)
-                yield f"data: {data_chunk}\n\n"
-            
-            # 保存助手回复到数据库
+                yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
+
             db.save_message(agent_id, session_id, "assistant", full_response)
-            
             yield f"data: {json.dumps({'done': True}, ensure_ascii=False)}\n\n"
-            
+
         except Exception as e:
             logger.exception(f"Agent stream failed: {e}")
-            error_data = json.dumps({"error": str(e)}, ensure_ascii=False)
-            yield f"data: {error_data}\n\n"
+            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")

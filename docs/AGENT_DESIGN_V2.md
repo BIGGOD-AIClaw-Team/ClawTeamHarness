@@ -266,9 +266,12 @@ prompt:
   system: "你是一个友好的客服助手。"
 memory:
   enabled: true
-  type: "short"
-  short_term:
-    max_messages: 20
+  type: "short"          # short | long | vector | hybrid
+  short_term:            # 必填：当 type 包含 short 时必须配置
+    max_messages: 20     # 保留最近 N 条消息
+  # long_term:           # 可选：仅 type=long 或 type=hybrid 时需要
+  #   storage: "chroma"
+  #   vector_dim: 1536
 ```
 
 ---

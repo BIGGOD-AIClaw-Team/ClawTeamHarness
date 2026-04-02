@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Input, Select, Slider, Switch, Button, message, Tag, Tabs, Checkbox, Collapse, InputNumber, Tooltip, Space, Divider } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Input, Select, Slider, Switch, Button, message, Tag, Tabs, Checkbox, Tooltip } from 'antd';
 import { SciFiCard } from '../components/SciFiCard';
 import {
   ControlOutlined, CheckSquareOutlined, ExperimentOutlined,
@@ -188,8 +188,17 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete, onPubl
   const [modelError, setModelError] = useState<{ error: string; hint?: string } | null>(null);
   const [manualModelInput, setManualModelInput] = useState(false);
 
-  // 动态获取模型列表
-  const fetchModels = async (provider: string, apiKey: string, showMsg = true) => {
+  // 动态获取模型列表 - 使用 ref 避免闭包问题
+  const modelsAbortControllerRef = React.useRef<AbortController | null>(null);
+  
+  const fetchModels = React.useCallback(async (provider: string, apiKey: string, currentModel: string, showMsg = true) => {
+    // 取消之前的请求
+    if (modelsAbortControllerRef.current) {
+      modelsAbortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    modelsAbortControllerRef.current = abortController;
+    
     if (!apiKey) {
       setModels([]);
       setModelError(null);
@@ -202,8 +211,14 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete, onPubl
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider, api_key: apiKey }),
+        signal: abortController.signal,
       });
+      
+      if (abortController.signal.aborted) return;
+      
       const data = await resp.json();
+      
+      if (abortController.signal.aborted) return;
       
       if (data.error || data.error_code) {
         setModels([]);
@@ -214,7 +229,8 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete, onPubl
       
       if (data.models && data.models.length > 0) {
         setModels(data.models);
-        if (!data.models.includes(config.llm.model)) {
+        // 使用传入的 currentModel 而不是闭包中的 config
+        if (currentModel && !data.models.includes(currentModel)) {
           setConfig(prev => ({ ...prev, llm: { ...prev.llm, model: data.models[0] } }));
         }
         if (data.warning && showMsg) message.warning(data.warning);
@@ -223,84 +239,94 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete, onPubl
         setModelError({ error: data.warning, hint: data.error_hint || '请尝试手动输入模型名称' });
         if (showMsg) message.warning(data.warning);
       }
-    } catch (e) {
+    } catch (e: any) {
+      if (e.name === 'AbortError') return; // 忽略取消的请求
       console.error('Failed to fetch models:', e);
       setModels([]);
       setModelError({ error: '获取模型列表失败，请检查网络连接' });
     } finally {
-      setLoadingModels(false);
+      if (!abortController.signal.aborted) {
+        setLoadingModels(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (config.llm.api_key) {
-      fetchModels(config.llm.provider, config.llm.api_key);
+      fetchModels(config.llm.provider, config.llm.api_key, config.llm.model);
     } else {
       setModels([]);
     }
-  }, [config.llm.provider, config.llm.api_key]);
+  }, [config.llm.provider, config.llm.api_key, fetchModels]);
 
-  // 加载已有 Agent 配置
+  // 加载已有 Agent 配置 - 添加 AbortController 避免竞态条件
   useEffect(() => {
-    if (propAgentId) {
-      setAgentId(propAgentId);
-      fetch(`/api/agents/${propAgentId}`)
-        .then(res => res.json())
-        .then(data => {
-          const llmCfg = data.llm_config || {};
-          const modeCfg = data.mode_config || {};
-          const promptCfg = data.prompt_config || {};
-          const memoryCfg = data.memory_config || {};
-          const decisionCfg = data.decision_config || {};
-          const toolsCfg = data.tools_config || {};
-          
-          setConfig({
-            name: data.name || '',
-            description: data.description || '',
-            llm: {
-              provider: llmCfg.provider || 'openai',
-              model: llmCfg.model || 'gpt-4o',
-              api_key: llmCfg.api_key || '',
-              base_url: llmCfg.base_url || PROVIDER_DEFAULT_BASE_URLS[llmCfg.provider] || '',
-              temperature: llmCfg.temperature ?? 0.7,
-            },
-            mode: {
-              type: modeCfg.type || 'react',
-              max_iterations: modeCfg.max_iterations || 10,
-            },
-            prompt: {
-              system: promptCfg.system || '',
-            },
-            memory: {
-              enabled: memoryCfg.enabled !== false,
-              type: memoryCfg.type || 'hybrid',
-            },
-            decision: {
-              auto_critique: decisionCfg.auto_critique !== false,
-            },
-            tools: {
-              enabled: toolsCfg.enabled !== false,
-            },
-            prompt_template: data.prompt_template || 'assistant',
-            enable_suggestions: data.enable_suggestions || false,
-            suggestions: data.suggestions || '',
-            skills: data.skills || [],
-            sub_agents: data.sub_agents || [],
-            mcp_tools: data.mcp_tools || [],
-            memory_detail: {
-              short_term_enabled: memoryCfg.short_term_enabled ?? true,
-              max_messages: memoryCfg.max_messages || 50,
-              long_term_enabled: memoryCfg.long_term_enabled ?? false,
-              storage: memoryCfg.storage || 'chroma',
-              top_k: memoryCfg.top_k || 5,
-            },
-          });
-        })
-        .catch(err => {
-          console.error('Failed to load agent:', err);
-          message.error('加载 Agent 失败');
+    if (!propAgentId) return;
+    
+    const abortController = new AbortController();
+    setAgentId(propAgentId);
+    
+    fetch(`/api/agents/${propAgentId}`, { signal: abortController.signal })
+      .then(res => res.json())
+      .then(data => {
+        const llmCfg = data.llm_config || {};
+        const modeCfg = data.mode_config || {};
+        const promptCfg = data.prompt_config || {};
+        const memoryCfg = data.memory_config || {};
+        const decisionCfg = data.decision_config || {};
+        const toolsCfg = data.tools_config || {};
+        
+        setConfig({
+          name: data.name || '',
+          description: data.description || '',
+          llm: {
+            provider: llmCfg.provider || 'openai',
+            model: llmCfg.model || 'gpt-4o',
+            api_key: llmCfg.api_key || '',
+            base_url: llmCfg.base_url || PROVIDER_DEFAULT_BASE_URLS[llmCfg.provider] || '',
+            temperature: llmCfg.temperature ?? 0.7,
+          },
+          mode: {
+            type: modeCfg.type || 'react',
+            max_iterations: modeCfg.max_iterations || 10,
+          },
+          prompt: {
+            system: promptCfg.system || '',
+          },
+          memory: {
+            enabled: memoryCfg.enabled !== false,
+            type: memoryCfg.type || 'hybrid',
+          },
+          decision: {
+            auto_critique: decisionCfg.auto_critique !== false,
+          },
+          tools: {
+            enabled: toolsCfg.enabled !== false,
+          },
+          prompt_template: data.prompt_template || 'assistant',
+          enable_suggestions: data.enable_suggestions || false,
+          suggestions: data.suggestions || '',
+          skills: data.skills || [],
+          sub_agents: data.sub_agents || [],
+          mcp_tools: data.mcp_tools || [],
+          memory_detail: {
+            short_term_enabled: memoryCfg.short_term_enabled ?? true,
+            max_messages: memoryCfg.max_messages || 50,
+            long_term_enabled: memoryCfg.long_term_enabled ?? false,
+            storage: memoryCfg.storage || 'chroma',
+            top_k: memoryCfg.top_k || 5,
+          },
         });
-    }
+      })
+      .catch(err => {
+        if (err.name === 'AbortError') return;
+        console.error('Failed to load agent:', err);
+        message.error('加载 Agent 失败');
+      });
+      
+    return () => {
+      abortController.abort();
+    };
   }, [propAgentId]);
 
   const testConnection = async () => {
@@ -550,7 +576,7 @@ export function AgentConfigPageV3({ agentId: propAgentId, onEditComplete, onPubl
           <div style={{ display: 'flex', gap: 8 }}>
             <Input.Password style={{ ...inputStyle, flex: 1 }} placeholder="输入 API Key" value={config.llm.api_key}
               onChange={e => setConfig({ ...config, llm: { ...config.llm, api_key: e.target.value } })} />
-            <Button onClick={() => fetchModels(config.llm.provider, config.llm.api_key)} disabled={!config.llm.api_key} loading={loadingModels}
+            <Button onClick={() => fetchModels(config.llm.provider, config.llm.api_key, config.llm.model)} disabled={!config.llm.api_key} loading={loadingModels}
               style={{ background: 'rgba(0, 212, 255, 0.2)', border: '1px solid #00d4ff', color: '#00d4ff', whiteSpace: 'nowrap' }}>
               📥 获取模型
             </Button>

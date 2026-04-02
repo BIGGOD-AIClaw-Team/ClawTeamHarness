@@ -247,7 +247,7 @@ export function ChatPage({ onEditAgent, initialAgentId }: ChatPageProps) {
 
   // 加载已发布的 Agent 列表
   const loadPublishedAgents = useCallback(() => {
-    fetch('/api/agents/?status=published')
+    fetch('/api/v1/agents/?status=published')
       .then(res => res.json())
       .then(data => setPublishedAgents(data.agents || []))
       .catch(err => console.error('Failed to load agents:', err));
@@ -268,7 +268,7 @@ export function ChatPage({ onEditAgent, initialAgentId }: ChatPageProps) {
   const handleDeleteAgent = async (agentId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const resp = await fetch(`/api/agents/${agentId}`, { method: 'DELETE' });
+      const resp = await fetch(`/api/v1/agents/${agentId}`, { method: 'DELETE' });
       if (resp.ok) {
         message.success('Agent 已删除');
         loadPublishedAgents();
@@ -308,7 +308,7 @@ export function ChatPage({ onEditAgent, initialAgentId }: ChatPageProps) {
     
     try {
       // 调用流式 API
-      const resp = await fetch(`/api/agents/${currentSession.agent_id}/stream`, {
+      const resp = await fetch(`/api/v1/agents/${currentSession.agent_id}/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -439,13 +439,13 @@ export function ChatPage({ onEditAgent, initialAgentId }: ChatPageProps) {
     
     // 尝试加载历史会话
     try {
-      const sessionsResp = await fetch(`/api/agents/${agentId}/conversations`);
+      const sessionsResp = await fetch(`/api/v1/agents/${agentId}/conversations`);
       const sessionsData = await sessionsResp.json();
       
       if (sessionsData.conversations && sessionsData.conversations.length > 0) {
         // 使用最新的会话
         const latestConv = sessionsData.conversations[0];
-        const messagesResp = await fetch(`/api/agents/${agentId}/messages/${latestConv.id}`);
+        const messagesResp = await fetch(`/api/v1/agents/${agentId}/messages/${latestConv.id}`);
         const messagesData = await messagesResp.json();
         
         if (messagesData.messages && messagesData.messages.length > 0) {

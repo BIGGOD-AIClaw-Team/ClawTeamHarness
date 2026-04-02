@@ -12,7 +12,7 @@ export function useAgentStream(sessionId: string) {
   const [ws, setWs] = useState<WebSocket | null>(null);
 
   const connect = useCallback(() => {
-    const wsUrl = `ws://localhost:8000/ws/${sessionId}`;
+    const wsUrl = `ws://localhost:8001/ws/${sessionId}`;
     const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => setStatus('connected');

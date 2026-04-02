@@ -4,19 +4,17 @@
  */
 import React, { useState, useEffect } from 'react';
 import {
-  Card, Tabs, Button, Space, Typography, Tag, Select, Input,
-  Modal, message, Steps, Collapse, Badge, Tooltip, Spin,
-  Empty, Divider, Switch, Alert, Dropdown, Menu,
+  Card, Tabs, Button, Space, Typography, Tag, Input,
+  Modal, message, Tooltip, Spin,
+  Empty,
 } from 'antd';
 import {
-  PlayCircleOutlined, SaveOutlined, PlusOutlined, DeleteOutlined,
+  PlayCircleOutlined, PlusOutlined, DeleteOutlined,
   SettingOutlined, CloudServerOutlined, RobotOutlined, BranchesOutlined,
   SyncOutlined, CheckCircleOutlined, CloseCircleOutlined, LoadingOutlined,
-  MoreOutlined, EditOutlined, CopyOutlined, ExportOutlined,
+  EditOutlined, ExportOutlined,
 } from '@ant-design/icons';
-import type { MenuProps } from 'antd';
-
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 const { Search } = Input;
 
 // ============ 类型定义 ============
@@ -25,7 +23,7 @@ interface SkillNode {
   type: 'skill' | 'mcp' | 'agent' | 'condition' | 'llm' | 'start' | 'end';
   label: string;
   skillName?: string;
-  params: Record<string, any>;
+  params?: Record<string, any>;
   status?: 'idle' | 'running' | 'success' | 'error';
 }
 
@@ -243,7 +241,7 @@ export function WorkflowPage() {
       id: '',
       name: template.name,
       description: template.description,
-      nodes: template.nodes.map(n => ({ ...n })),
+      nodes: template.nodes.map(n => ({ ...n } as SkillNode)),
       edges: template.edges.map(e => ({ ...e })),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -253,7 +251,7 @@ export function WorkflowPage() {
   };
 
   // 渲染节点
-  const renderNode = (node: SkillNode, index: number) => {
+  const renderNode = (node: SkillNode) => {
     const statusIcon = node.status === 'running' ? <LoadingOutlined spin /> :
                        node.status === 'success' ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> :
                        node.status === 'error' ? <CloseCircleOutlined style={{ color: '#ff4d4f' }} /> :
@@ -275,7 +273,6 @@ export function WorkflowPage() {
 
   // 渲染工作流图（简化版）
   const renderWorkflowCanvas = (workflow: Workflow) => {
-    const nodeCount = workflow.nodes.length;
     const startNode = workflow.nodes.find(n => n.type === 'start');
     const endNode = workflow.nodes.find(n => n.type === 'end');
     const middleNodes = workflow.nodes.filter(n => n.type !== 'start' && n.type !== 'end');
@@ -285,7 +282,7 @@ export function WorkflowPage() {
         {/* 节点布局 */}
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', gap: 24 }}>
           {/* 开始节点 */}
-          {startNode && renderNode(startNode, 0)}
+          {startNode && renderNode(startNode)}
           
           {/* 连接线 */}
           {startNode && middleNodes.length > 0 && (
@@ -295,7 +292,7 @@ export function WorkflowPage() {
           {/* 中间节点 */}
           {middleNodes.map((node, idx) => (
             <React.Fragment key={node.id}>
-              {renderNode(node, idx + 1)}
+              {renderNode(node)}
               {idx < middleNodes.length - 1 && (
                 <div style={{ color: '#3b82f6', fontSize: 20 }}>→</div>
               )}
@@ -308,7 +305,7 @@ export function WorkflowPage() {
           )}
           
           {/* 结束节点 */}
-          {endNode && renderNode(endNode, nodeCount - 1)}
+          {endNode && renderNode(endNode)}
         </div>
 
         {/* 状态统计 */}
@@ -376,7 +373,7 @@ export function WorkflowPage() {
                         <Button key="view" type="text" icon={<ExportOutlined />} onClick={() => {
                           setSelectedWorkflow({
                             id: '', name: template.name, description: template.description,
-                            nodes: template.nodes, edges: template.edges,
+                            nodes: template.nodes as SkillNode[], edges: template.edges,
                             created_at: '', updated_at: '',
                           });
                           setActiveTab('canvas');
